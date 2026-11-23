@@ -1,348 +1,528 @@
-const express = require("express");
-const http = require("http");
-const path = require("path");
-const { Server } = require("socket.io");
-const { v4: uuidv4 } = require("uuid");
+'use strict';
+
+/**
+ * Chess Together server.
+ *
+ * The server owns every game: it checks each move with chess.js, runs the clocks,
+ * decides results, and relays chat, call signalling and puzzle sync between the
+ * two players in a room. Clients only render the state they are sent.
+ */
+
+const path = require('path');
+const http = require('http');
+const crypto = require('crypto');
+const express = require('express');
+const { Server } = require('socket.io');
+const { Chess } = require('chess.js');
 
 // ---------------------------------------------------------------------------
-// App & Server
+// Config
+// ---------------------------------------------------------------------------
+const PORT = Number(process.env.PORT) || 3000;
+const GAME_TIME_MS = 10 * 60 * 1000;
+const EMPTY_ROOM_TTL_MS = 10 * 60 * 1000; // delete a room 10 min after both players leave
+const WAITING_ROOM_TTL_MS = 60 * 60 * 1000; // delete an unjoined room after 1 hour
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O, they get misread
+const CODE_LENGTH = 6;
+const MAX_CHAT_LENGTH = 400;
+const CHAT_HISTORY = 60;
+const MAX_SIGNAL_BYTES = 30 * 1024;
+const EVENTS_PER_SECOND = 40;
+
+// ---------------------------------------------------------------------------
+// HTTP
 // ---------------------------------------------------------------------------
 const app = express();
+app.disable('x-powered-by');
+
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "media-src 'self' blob:",
+      "connect-src 'self' ws: wss:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ')
+  );
+  next();
+});
+
+app.get('/vendor/chess.js', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.sendFile(require.resolve('chess.js'));
+});
+
+app.get('/api/ice-servers', (_req, res) => {
+  // STUN works on most home Wi-Fi. Phones on mobile data often need a TURN relay;
+  // set TURN_URL, TURN_USERNAME and TURN_CREDENTIAL to enable one.
+  const servers = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+  if (process.env.TURN_URL) {
+    servers.push({
+      urls: process.env.TURN_URL.split(',').map((u) => u.trim()),
+      username: process.env.TURN_USERNAME || '',
+      credential: process.env.TURN_CREDENTIAL || '',
+    });
+  }
+  res.json({ iceServers: servers });
+});
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', rooms: rooms.size, uptime: Math.round(process.uptime()) });
+});
+
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+      else if (/\.(svg|woff2)$/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=604800');
+      else res.setHeader('Cache-Control', 'public, max-age=300');
+    },
+  })
+);
+
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
-  pingInterval: 25000,
-  pingTimeout: 60000,
-});
+const io = new Server(server, { maxHttpBufferSize: 64 * 1024, pingInterval: 20000, pingTimeout: 30000 });
 
 // ---------------------------------------------------------------------------
-// Static files & health check
-// ---------------------------------------------------------------------------
-app.use(express.static(path.join(__dirname, "public")));
-
-app.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    uptime: process.uptime(),
-    rooms: rooms.size,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Room storage
+// Rooms
 // ---------------------------------------------------------------------------
 /** @type {Map<string, Room>} */
 const rooms = new Map();
 
-/** @type {Map<string, string>} code -> roomId */
-const codeToRoom = new Map();
-
 /**
+ * @typedef {{ token: string, name: string, socketId: string|null }} Seat
+ * @typedef {{ winner: 'w'|'b'|null, reason: string }} Result
  * @typedef {Object} Room
- * @property {string}   id
- * @property {string}   code
- * @property {Player[]} players
- * @property {string}   gameState   – "waiting" | "playing" | "finished"
- * @property {string|null} currentPuzzleId
+ * @property {string} code
+ * @property {{ w: Seat|null, b: Seat|null }} seats
+ * @property {Chess} chess
+ * @property {'waiting'|'playing'|'over'} status
+ * @property {Result|null} result
+ * @property {{ w: number, b: number, turnStartedAt: number|null }} clock
+ * @property {NodeJS.Timeout|null} flagTimer
+ * @property {'w'|'b'|null} drawOffer
+ * @property {{ w: boolean, b: boolean }} rematch
+ * @property {Array<object>} chat
+ * @property {number} lastActivity
+ * @property {number} createdAt
+ * @property {number} gameNumber
  */
 
-/**
- * @typedef {Object} Player
- * @property {string} socketId
- * @property {string} color – "w" | "b"
- */
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-const CODE_LENGTH = 6;
-const CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-/** Generate a unique 6-character uppercase join code. */
-function generateCode() {
-  let code;
-  do {
-    code = "";
-    for (let i = 0; i < CODE_LENGTH; i++) {
-      code += CODE_CHARS.charAt(Math.floor(Math.random() * CODE_CHARS.length));
-    }
-  } while (codeToRoom.has(code));
-  return code;
-}
-
-/** Return the other player's socketId in a room, if any. */
-function getOpponentId(room, socketId) {
-  const opponent = room.players.find((p) => p.socketId !== socketId);
-  return opponent ? opponent.socketId : null;
-}
-
-/** Remove a player from a room and clean up if empty. */
-function removePlayerFromRoom(room, socketId) {
-  room.players = room.players.filter((p) => p.socketId !== socketId);
-
-  if (room.players.length === 0) {
-    codeToRoom.delete(room.code);
-    rooms.delete(room.id);
-    console.log(`[room] Deleted room ${room.id} (${room.code}) – empty`);
-  } else {
-    // Notify remaining player that opponent disconnected
-    const remaining = room.players[0];
-    io.to(remaining.socketId).emit("opponent-disconnected");
-    room.gameState = "finished";
+function newCode() {
+  for (;;) {
+    let code = '';
+    const bytes = crypto.randomBytes(CODE_LENGTH);
+    for (let i = 0; i < CODE_LENGTH; i++) code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+    if (!rooms.has(code)) return code;
   }
 }
 
-/** Find the room a socket belongs to. */
-function findRoomBySocket(socketId) {
-  for (const room of rooms.values()) {
-    if (room.players.some((p) => p.socketId === socketId)) {
-      return room;
-    }
+function createRoom() {
+  const room = {
+    code: newCode(),
+    seats: { w: null, b: null },
+    chess: new Chess(),
+    status: 'waiting',
+    result: null,
+    clock: { w: GAME_TIME_MS, b: GAME_TIME_MS, turnStartedAt: null },
+    flagTimer: null,
+    drawOffer: null,
+    rematch: { w: false, b: false },
+    chat: [],
+    lastActivity: Date.now(),
+    createdAt: Date.now(),
+    gameNumber: 1,
+  };
+  rooms.set(room.code, room);
+  return room;
+}
+
+const other = (color) => (color === 'w' ? 'b' : 'w');
+
+function remaining(room, color) {
+  const { clock } = room;
+  const running = room.status === 'playing' && clock.turnStartedAt !== null && room.chess.turn() === color;
+  return Math.max(0, clock[color] - (running ? Date.now() - clock.turnStartedAt : 0));
+}
+
+function publicState(room) {
+  const history = room.chess.history({ verbose: true });
+  const last = history[history.length - 1];
+  const seat = (c) => (room.seats[c] ? { name: room.seats[c].name, connected: !!room.seats[c].socketId } : null);
+  return {
+    code: room.code,
+    status: room.status,
+    result: room.result,
+    fen: room.chess.fen(),
+    turn: room.chess.turn(),
+    inCheck: room.chess.in_check(),
+    moves: history.map((m) => m.san),
+    lastMove: last ? { from: last.from, to: last.to } : null,
+    clock: {
+      w: remaining(room, 'w'),
+      b: remaining(room, 'b'),
+      running: room.status === 'playing' && room.clock.turnStartedAt !== null,
+      serverTime: Date.now(),
+    },
+    players: { w: seat('w'), b: seat('b') },
+    drawOffer: room.drawOffer,
+    rematch: room.rematch,
+    gameNumber: room.gameNumber,
+  };
+}
+
+function broadcast(room) {
+  room.lastActivity = Date.now();
+  io.to(room.code).emit('state', publicState(room));
+}
+
+function endGame(room, winner, reason) {
+  room.status = 'over';
+  room.result = { winner, reason };
+  room.drawOffer = null;
+  room.rematch = { w: false, b: false };
+  if (room.clock.turnStartedAt !== null) {
+    const mover = room.chess.turn();
+    room.clock[mover] = remaining(room, mover);
+    room.clock.turnStartedAt = null;
   }
-  return null;
+  clearTimeout(room.flagTimer);
+  room.flagTimer = null;
+}
+
+function onlyKing(chess, color) {
+  return chess
+    .board()
+    .flat()
+    .every((sq) => !sq || sq.color !== color || sq.type === 'k');
+}
+
+function scheduleFlag(room) {
+  clearTimeout(room.flagTimer);
+  room.flagTimer = null;
+  if (room.status !== 'playing' || room.clock.turnStartedAt === null) return;
+  const mover = room.chess.turn();
+  room.flagTimer = setTimeout(() => {
+    if (room.status !== 'playing' || room.chess.turn() !== mover) return;
+    if (remaining(room, mover) > 0) return scheduleFlag(room);
+    room.clock[mover] = 0;
+    // A player who runs out of time only loses if the opponent could still mate.
+    if (onlyKing(room.chess, other(mover))) endGame(room, null, 'timeout vs insufficient material');
+    else endGame(room, other(mover), 'timeout');
+    broadcast(room);
+  }, remaining(room, mover) + 50);
+}
+
+function startNewGame(room) {
+  room.chess = new Chess();
+  room.status = 'playing';
+  room.result = null;
+  room.clock = { w: GAME_TIME_MS, b: GAME_TIME_MS, turnStartedAt: null };
+  room.drawOffer = null;
+  room.rematch = { w: false, b: false };
+  clearTimeout(room.flagTimer);
+  room.flagTimer = null;
 }
 
 // ---------------------------------------------------------------------------
-// Socket.IO
+// Validation helpers
 // ---------------------------------------------------------------------------
-io.on("connection", (socket) => {
-  console.log(`[ws] Connected: ${socket.id}`);
+const TOKEN_RE = /^[A-Za-z0-9_-]{16,64}$/;
+const SQUARE_RE = /^[a-h][1-8]$/;
+const UCI_RE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+const SIGNAL_TYPES = new Set(['invite', 'accept', 'decline', 'end', 'description', 'candidate']);
 
-  // ---- Create Room --------------------------------------------------------
-  socket.on("create-room", (callback) => {
-    const roomId = uuidv4();
-    const code = generateCode();
+function cleanName(name) {
+  const n = typeof name === 'string' ? name.replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 20) : '';
+  return n || 'Player';
+}
 
-    /** @type {Room} */
-    const room = {
-      id: roomId,
-      code,
-      players: [{ socketId: socket.id, color: null }], // color assigned on join
-      gameState: "waiting",
-      currentPuzzleId: null,
-    };
+function cleanCode(code) {
+  return typeof code === 'string' ? code.toUpperCase().replace(/[^A-Z]/g, '').slice(0, CODE_LENGTH) : '';
+}
 
-    rooms.set(roomId, room);
-    codeToRoom.set(code, roomId);
-    socket.join(roomId);
+function reply(ack, payload) {
+  if (typeof ack === 'function') ack(payload);
+}
 
-    console.log(`[room] Created ${roomId} with code ${code}`);
+/** The room and colour for this socket, or null if it is not seated anywhere. */
+function membership(socket) {
+  const room = rooms.get(socket.data.code);
+  if (!room) return null;
+  const color = socket.data.color;
+  const seat = room.seats[color];
+  if (!seat || seat.socketId !== socket.id) return null;
+  return { room, color };
+}
 
-    const payload = { roomId, code };
-    socket.emit("room-created", payload);
-    if (typeof callback === "function") callback(payload);
+function opponentSocket(room, color) {
+  const seat = room.seats[other(color)];
+  return seat && seat.socketId ? io.sockets.sockets.get(seat.socketId) : null;
+}
+
+function leaveCurrentRoom(socket) {
+  const m = membership(socket);
+  if (!m) return;
+  const { room, color } = m;
+  socket.leave(room.code);
+  room.seats[color].socketId = null;
+  socket.data.code = null;
+  socket.data.color = null;
+  if (room.status === 'waiting' && !room.seats[other(color)]) {
+    rooms.delete(room.code);
+    return;
+  }
+  const opp = opponentSocket(room, color);
+  if (opp) opp.emit('rtc', { type: 'end' });
+  broadcast(room);
+}
+
+function seatSocket(socket, room, color) {
+  leaveCurrentRoom(socket);
+  room.seats[color].socketId = socket.id;
+  socket.data.code = room.code;
+  socket.data.color = color;
+  socket.join(room.code);
+}
+
+// ---------------------------------------------------------------------------
+// Socket events
+// ---------------------------------------------------------------------------
+io.on('connection', (socket) => {
+  socket.data.code = null;
+  socket.data.color = null;
+
+  // Simple flood guard: drop events beyond EVENTS_PER_SECOND.
+  let windowStart = Date.now();
+  let count = 0;
+  let lastChatAt = 0;
+  socket.use((_packet, next) => {
+    const now = Date.now();
+    if (now - windowStart > 1000) {
+      windowStart = now;
+      count = 0;
+    }
+    if (++count > EVENTS_PER_SECOND) return;
+    next();
   });
 
-  // ---- Join Room ----------------------------------------------------------
-  socket.on("join-room", (data, callback) => {
-    const code = (data && (data.code || data)).toString().toUpperCase().trim();
-    const roomId = codeToRoom.get(code);
+  socket.on('create', (data, ack) => {
+    const token = data && data.token;
+    if (!TOKEN_RE.test(token || '')) return reply(ack, { ok: false, error: 'Bad player id. Reload the page.' });
+    const room = createRoom();
+    const color = crypto.randomInt(2) === 0 ? 'w' : 'b';
+    room.seats[color] = { token, name: cleanName(data.name), socketId: null };
+    seatSocket(socket, room, color);
+    reply(ack, { ok: true, code: room.code, color });
+    broadcast(room);
+    console.log(`[room ${room.code}] created`);
+  });
 
-    if (!roomId || !rooms.has(roomId)) {
-      const err = { error: "Room not found" };
-      socket.emit("join-error", err);
-      if (typeof callback === "function") callback(err);
+  socket.on('join', (data, ack) => {
+    const code = cleanCode(data && data.code);
+    const token = data && data.token;
+    if (!TOKEN_RE.test(token || '')) return reply(ack, { ok: false, error: 'Bad player id. Reload the page.' });
+    const room = rooms.get(code);
+    if (!room) return reply(ack, { ok: false, error: 'No room with that code. Check the letters and try again.' });
+
+    // Returning player (refresh, dropped signal): take the same seat back.
+    const existing = ['w', 'b'].find((c) => room.seats[c] && room.seats[c].token === token);
+    if (existing) {
+      const prev = room.seats[existing].socketId;
+      if (prev && prev !== socket.id) {
+        const old = io.sockets.sockets.get(prev);
+        if (old) {
+          old.emit('replaced');
+          old.leave(room.code);
+          old.data.code = null;
+        }
+      }
+      seatSocket(socket, room, existing);
+      reply(ack, { ok: true, code: room.code, color: existing, chat: room.chat });
+      broadcast(room);
       return;
     }
 
-    const room = rooms.get(roomId);
+    const free = ['w', 'b'].find((c) => !room.seats[c]);
+    if (!free) return reply(ack, { ok: false, error: 'That room already has two players.' });
+    room.seats[free] = { token, name: cleanName(data.name), socketId: null };
+    seatSocket(socket, room, free);
+    startNewGame(room);
+    reply(ack, { ok: true, code: room.code, color: free, chat: room.chat });
+    broadcast(room);
+    console.log(`[room ${room.code}] game started`);
+  });
 
-    if (room.players.length >= 2) {
-      const err = { error: "Room is full" };
-      socket.emit("join-error", err);
-      if (typeof callback === "function") callback(err);
+  socket.on('leave', () => leaveCurrentRoom(socket));
+
+  socket.on('move', (data, ack) => {
+    const m = membership(socket);
+    if (!m) return reply(ack, { ok: false, error: 'You are not in a game.' });
+    const { room, color } = m;
+    if (room.status !== 'playing') return reply(ack, { ok: false, error: 'The game is not in progress.' });
+    if (room.chess.turn() !== color) return reply(ack, { ok: false, error: 'Not your turn.' });
+    const from = data && data.from;
+    const to = data && data.to;
+    const promotion = data && data.promotion;
+    if (!SQUARE_RE.test(from || '') || !SQUARE_RE.test(to || '')) return reply(ack, { ok: false, error: 'Bad move.' });
+    if (promotion !== undefined && !['q', 'r', 'b', 'n'].includes(promotion)) return reply(ack, { ok: false, error: 'Bad move.' });
+
+    // Charge the mover's clock before accepting the move.
+    const now = Date.now();
+    if (room.clock.turnStartedAt !== null) {
+      const left = room.clock[color] - (now - room.clock.turnStartedAt);
+      if (left <= 0) {
+        room.clock[color] = 0;
+        if (onlyKing(room.chess, other(color))) endGame(room, null, 'timeout vs insufficient material');
+        else endGame(room, other(color), 'timeout');
+        broadcast(room);
+        return reply(ack, { ok: false, error: 'Your time ran out.' });
+      }
+      room.clock[color] = left;
+    }
+
+    const move = room.chess.move({ from, to, promotion: promotion || 'q' });
+    if (!move) return reply(ack, { ok: false, error: 'Illegal move.' });
+
+    room.drawOffer = null;
+    // Clocks start once White has made the first move.
+    room.clock.turnStartedAt = now;
+
+    const chess = room.chess;
+    if (chess.in_checkmate()) endGame(room, color, 'checkmate');
+    else if (chess.in_stalemate()) endGame(room, null, 'stalemate');
+    else if (chess.insufficient_material()) endGame(room, null, 'insufficient material');
+    else if (chess.in_threefold_repetition()) endGame(room, null, 'threefold repetition');
+    else if (chess.in_draw()) endGame(room, null, '50-move rule');
+    else scheduleFlag(room);
+
+    reply(ack, { ok: true });
+    broadcast(room);
+  });
+
+  socket.on('resign', () => {
+    const m = membership(socket);
+    if (!m || m.room.status !== 'playing') return;
+    endGame(m.room, other(m.color), 'resignation');
+    broadcast(m.room);
+  });
+
+  socket.on('draw-offer', () => {
+    const m = membership(socket);
+    if (!m || m.room.status !== 'playing' || m.room.drawOffer) return;
+    m.room.drawOffer = m.color;
+    broadcast(m.room);
+  });
+
+  socket.on('draw-answer', (data) => {
+    const m = membership(socket);
+    if (!m || m.room.status !== 'playing' || m.room.drawOffer !== other(m.color)) return;
+    if (data && data.accept === true) endGame(m.room, null, 'agreement');
+    else m.room.drawOffer = null;
+    broadcast(m.room);
+  });
+
+  socket.on('rematch', () => {
+    const m = membership(socket);
+    if (!m || m.room.status !== 'over') return;
+    const { room, color } = m;
+    room.rematch[color] = !room.rematch[color];
+    if (room.rematch.w && room.rematch.b) {
+      // Swap colours for the next game.
+      const { w, b } = room.seats;
+      room.seats = { w: b, b: w };
+      for (const c of ['w', 'b']) {
+        const s = room.seats[c] && room.seats[c].socketId && io.sockets.sockets.get(room.seats[c].socketId);
+        if (s) {
+          s.data.color = c;
+          s.emit('seat', { color: c });
+        }
+      }
+      room.gameNumber += 1;
+      startNewGame(room);
+    }
+    broadcast(room);
+  });
+
+  socket.on('chat', (data) => {
+    const m = membership(socket);
+    if (!m) return;
+    const now = Date.now();
+    if (now - lastChatAt < 400) return;
+    lastChatAt = now;
+    const text = typeof (data && data.text) === 'string' ? data.text.trim().slice(0, MAX_CHAT_LENGTH) : '';
+    if (!text) return;
+    const msg = { id: crypto.randomUUID(), color: m.color, name: m.room.seats[m.color].name, text, at: now };
+    m.room.chat.push(msg);
+    if (m.room.chat.length > CHAT_HISTORY) m.room.chat.shift();
+    m.room.lastActivity = now;
+    io.to(m.room.code).emit('chat', msg);
+  });
+
+  // WebRTC signalling: relay only, to the other player in the room.
+  socket.on('rtc', (data) => {
+    const m = membership(socket);
+    if (!m || !data || !SIGNAL_TYPES.has(data.type)) return;
+    let size = 0;
+    try {
+      size = JSON.stringify(data).length;
+    } catch (_) {
       return;
     }
-
-    // Prevent the same socket from joining twice
-    if (room.players.some((p) => p.socketId === socket.id)) {
-      const err = { error: "Already in this room" };
-      socket.emit("join-error", err);
-      if (typeof callback === "function") callback(err);
-      return;
-    }
-
-    // Randomly assign colours
-    const colors = Math.random() < 0.5 ? ["w", "b"] : ["b", "w"];
-    room.players[0].color = colors[0];
-    room.players.push({ socketId: socket.id, color: colors[1] });
-    room.gameState = "playing";
-
-    socket.join(roomId);
-
-    // Notify both players
-    room.players.forEach((p) => {
-      io.to(p.socketId).emit("room-joined", {
-        roomId,
-        color: p.color,
-      });
-    });
-
-    console.log(`[room] ${socket.id} joined room ${roomId} (${code})`);
-
-    if (typeof callback === "function") callback({ roomId, color: colors[1] });
+    if (size > MAX_SIGNAL_BYTES) return;
+    const opp = opponentSocket(m.room, m.color);
+    if (opp) opp.emit('rtc', { type: data.type, payload: data.payload, video: !!data.video });
+    else if (data.type === 'invite') socket.emit('rtc', { type: 'unavailable' });
   });
 
-  // ---- Move ---------------------------------------------------------------
-  socket.on("move", (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("move", { move: data.move });
-    }
+  // Puzzle sync between partners in the same room.
+  socket.on('puzzle', (data) => {
+    const m = membership(socket);
+    if (!m || !data) return;
+    const action = data.action;
+    const id = typeof data.id === 'string' ? data.id.slice(0, 12) : '';
+    if (!['open', 'move', 'reset'].includes(action) || !/^[A-Za-z0-9]+$/.test(id)) return;
+    if (action === 'move' && !UCI_RE.test(data.uci || '')) return;
+    const opp = opponentSocket(m.room, m.color);
+    if (opp) opp.emit('puzzle', { action, id, uci: action === 'move' ? data.uci : undefined, name: m.room.seats[m.color].name });
   });
 
-  // ---- Puzzle Move --------------------------------------------------------
-  socket.on("puzzle-move", (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("puzzle-move", {
-        move: data.move,
-        puzzleId: data.puzzleId,
-      });
-    }
-  });
-
-  // ---- Puzzle Sync --------------------------------------------------------
-  socket.on("puzzle-sync", (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    room.currentPuzzleId = data.puzzleId;
-
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("puzzle-sync", { puzzleId: data.puzzleId });
-    }
-  });
-
-  // ---- WebRTC Signaling ---------------------------------------------------
-  socket.on("offer", (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("offer", { sdp: data.sdp });
-    }
-  });
-
-  socket.on("answer", (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("answer", { sdp: data.sdp });
-    }
-  });
-
-  socket.on("ice-candidate", (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("ice-candidate", { candidate: data.candidate });
-    }
-  });
-
-  // ---- Chat ---------------------------------------------------------------
-  socket.on("chat", (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("chat", {
-        message: data.message,
-        from: "opponent",
-        timestamp: Date.now(),
-      });
-    }
-  });
-
-  // ---- Resign / Draw offers -----------------------------------------------
-  socket.on("resign", (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    room.gameState = "finished";
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("opponent-resigned");
-    }
-    socket.emit("you-resigned");
-  });
-
-  const handleDrawOffer = (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("draw-offered");
-      io.to(opponentId).emit("draw-offer");
-    }
-  };
-  socket.on("offer-draw", handleDrawOffer);
-  socket.on("draw-offer", handleDrawOffer);
-
-  const handleDrawAccept = (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    room.gameState = "finished";
-    io.to(data.roomId).emit("draw-accepted");
-  };
-  socket.on("accept-draw", handleDrawAccept);
-  socket.on("draw-accepted", handleDrawAccept);
-
-  const handleDrawDecline = (data) => {
-    if (!data || !data.roomId) return;
-    const room = rooms.get(data.roomId);
-    if (!room) return;
-
-    const opponentId = getOpponentId(room, socket.id);
-    if (opponentId) {
-      io.to(opponentId).emit("draw-declined");
-    }
-  };
-  socket.on("decline-draw", handleDrawDecline);
-  socket.on("draw-declined", handleDrawDecline);
-
-  // ---- Disconnect ---------------------------------------------------------
-  socket.on("disconnect", (reason) => {
-    console.log(`[ws] Disconnected: ${socket.id} (${reason})`);
-
-    const room = findRoomBySocket(socket.id);
-    if (room) {
-      removePlayerFromRoom(room, socket.id);
-    }
+  socket.on('disconnect', () => {
+    const m = membership(socket);
+    if (!m) return;
+    m.room.seats[m.color].socketId = null;
+    const opp = opponentSocket(m.room, m.color);
+    if (opp) opp.emit('rtc', { type: 'end' });
+    broadcast(m.room);
   });
 });
 
-// ---------------------------------------------------------------------------
-// Start
-// ---------------------------------------------------------------------------
-const PORT = process.env.PORT || 3000;
+// Sweep abandoned rooms.
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, room] of rooms) {
+    const anyone = ['w', 'b'].some((c) => room.seats[c] && room.seats[c].socketId);
+    const idle = now - room.lastActivity;
+    if ((!anyone && idle > EMPTY_ROOM_TTL_MS) || (room.status === 'waiting' && idle > WAITING_ROOM_TTL_MS)) {
+      clearTimeout(room.flagTimer);
+      rooms.delete(code);
+    }
+  }
+}, 60 * 1000).unref();
 
 server.listen(PORT, () => {
-  console.log(`Chess Together server listening on http://localhost:${PORT}`);
+  console.log(`Chess Together running on http://localhost:${PORT}`);
 });
+
+module.exports = { server, rooms };

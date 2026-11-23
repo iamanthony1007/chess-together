@@ -1,656 +1,77 @@
-/**
- * Chess Together - Puzzles & Lessons Database
- */
-
-(function () {
-  'use strict';
-
-  // ── PUZZLES DATABASE ────────────────────────────────────────────────────────
-  // Standard format:
-  // - fen: position after opponent's setup move is about to be played (or already set)
-  // - moves: array of UCI moves [opponent_setup_move, player_move, opponent_reply, player_move...]
-  // If player starts immediately, moves can be [player_move, opponent_reply, player_move...]
-  // We'll define: fen is initial puzzle board position, first move in moves is player's required move,
-  // or opponent move if setup. Let's make `moves` be: [player_move, opponent_reply, player_win_move].
-  // All moves are UCI strings (e.g. 'e2e4', 'e7e8q').
-
-  window.PUZZLES_DB = [
-    // --- 800 - 1000: Beginner Tactics & Basic Mates ---
-    {
-      id: 1,
-      title: "Back Rank Mate",
-      fen: "6k1/5ppp/8/8/8/8/4R3/4K3 w - - 0 1",
-      moves: ["e2e8"],
-      rating: 850,
-      themes: ["mate in 1", "back rank"],
-      turn: "w",
-      description: "White to move and deliver checkmate."
-    },
-    {
-      id: 2,
-      title: "Scholar's Mate Threat",
-      fen: "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4",
-      moves: ["h5f7"],
-      rating: 880,
-      themes: ["mate in 1", "queen attack"],
-      turn: "w",
-      description: "Find the immediate checkmate!"
-    },
-    {
-      id: 3,
-      title: "Free Queen",
-      fen: "r1b1k2r/pppp1ppp/8/4q3/1b6/2P5/PP1BPPPP/RN1QKB1R w KQkq - 0 8",
-      moves: ["c3b4"],
-      rating: 820,
-      themes: ["hanging piece"],
-      turn: "w",
-      description: "Black left a bishop undefended on b4."
-    },
-    {
-      id: 4,
-      title: "Smothered Mate In One",
-      fen: "6k1/5Npp/8/8/8/8/8/4K2R w - - 0 1",
-      moves: ["f7h6"], // or fork
-      rating: 920,
-      themes: ["fork", "knight"],
-      turn: "w",
-      description: "Find the best knight jump."
-    },
-    {
-      id: 5,
-      title: "Simple Rook Fork",
-      fen: "4k3/8/8/3r4/8/8/2K1R3/8 b - - 0 1",
-      moves: ["e8d7"],
-      rating: 860,
-      themes: ["escape check"],
-      turn: "b",
-      description: "Respond to White's check."
-    },
-    {
-      id: 6,
-      title: "Royal Fork",
-      fen: "r3k2r/ppp2ppp/8/4N3/1b6/8/PPP2PPP/R1B1K2R w KQkq - 0 1",
-      moves: ["c1d2"],
-      rating: 940,
-      themes: ["defense", "pin"],
-      turn: "w",
-      description: "Block the bishop check cleanly."
-    },
-    {
-      id: 7,
-      title: "Capture the Loose Knight",
-      fen: "r1bqk2r/pppp1ppp/2n5/4p3/1bB1P1n1/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 1 6",
-      moves: ["c4f7", "e8f7", "f3g5"],
-      rating: 990,
-      themes: ["tactic", "sacrifice"],
-      turn: "w",
-      description: "Strike at f7 to regain material with advantage."
-    },
-    {
-      id: 8,
-      title: "Pawn Promotion",
-      fen: "8/4P3/8/8/8/3k4/8/4K3 w - - 0 1",
-      moves: ["e7e8q"],
-      rating: 810,
-      themes: ["endgame", "promotion"],
-      turn: "w",
-      description: "Promote your passed pawn to a Queen!"
-    },
-    {
-      id: 9,
-      title: "Anastasia's Mate Concept",
-      fen: "5rk1/1p3ppp/8/3N4/8/8/5PPP/4R1K1 w - - 0 1",
-      moves: ["d5e7", "g8h8"],
-      rating: 950,
-      themes: ["mate net", "knight"],
-      turn: "w",
-      description: "Cut off the enemy king."
-    },
-    {
-      id: 10,
-      title: "Queen & Helper Mate",
-      fen: "r4rk1/ppp2ppp/8/8/1b1Q4/8/PPP1BPPP/R3K2R w KQ - 0 1",
-      moves: ["c2c3"],
-      rating: 900,
-      themes: ["blocking check"],
-      turn: "w",
-      description: "Block the bishop check safely."
-    },
-
-    // --- 1000 - 1200: Forks, Pins, & Double Attacks ---
-    {
-      id: 11,
-      title: "Knight Fork King and Queen",
-      fen: "r1b1k2r/pp3ppp/2n5/3qp3/8/3B1N2/PPP2PPP/R2QK2R w KQkq - 0 10",
-      moves: ["d3h7", "h8h7", "d1d5"],
-      rating: 1050,
-      themes: ["fork", "deflection"],
-      turn: "w",
-      description: "Deflect Black and win the Queen."
-    },
-    {
-      id: 12,
-      title: "Absolute Pin on the Queen",
-      fen: "4k3/8/4q3/8/8/2B5/8/4K1R1 w - - 0 1",
-      moves: ["c3e5"],
-      rating: 1080,
-      themes: ["pin", "blocking"],
-      turn: "w",
-      description: "Neutralize the check."
-    },
-    {
-      id: 13,
-      title: "Classic Knight Fork on c7",
-      fen: "r1bqk2r/pppp1ppp/2n5/2b1p3/2B1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6",
-      moves: ["c3e4"],
-      rating: 1020,
-      themes: ["hanging piece"],
-      turn: "w",
-      description: "Capture the undefended attacker."
-    },
-    {
-      id: 14,
-      title: "Skewer on the Diagonal",
-      fen: "4k3/8/8/8/8/2b5/1B6/4K2R w K - 0 1",
-      moves: ["e1f1"],
-      rating: 1010,
-      themes: ["defense"],
-      turn: "w",
-      description: "Move king out of check."
-    },
-    {
-      id: 15,
-      title: "Double Attack on Queen and Rook",
-      fen: "r3k2r/pppq1ppp/2n1b3/2b1p3/4N3/3P1N2/PPP2PPP/R1BQK2R w KQkq - 1 9",
-      moves: ["e4c5", "d7e7", "c5e6"],
-      rating: 1120,
-      themes: ["fork", "outpost"],
-      turn: "w",
-      description: "Fork the Queen and Bishop on c5."
-    },
-    {
-      id: 16,
-      title: "Remove the Guard",
-      fen: "r1b2rk1/pp3ppp/2n1pn2/q1bp4/2P5/2N1PN2/PP1BBPPP/R2QK2R w KQ - 0 9",
-      moves: ["c3d5", "a5d8", "d5f6"],
-      rating: 1150,
-      themes: ["discovered attack", "deflection"],
-      turn: "w",
-      description: "Discover an attack on the black Queen while leaping into the center."
-    },
-    {
-      id: 17,
-      title: "Trapping the Bishop",
-      fen: "r1bqk1nr/pppp1ppp/2n5/4p3/1b2P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 2 4",
-      moves: ["c3d5"],
-      rating: 1040,
-      themes: ["initiative", "tempo"],
-      turn: "w",
-      description: "Attack the Black bishop and centralize your knight."
-    },
-    {
-      id: 18,
-      title: "Back Rank Combination",
-      fen: "3r2k1/5ppp/8/8/8/8/3R4/3R2K1 w - - 0 1",
-      moves: ["d2d8", "d8d8", "d1d8"],
-      rating: 1090,
-      themes: ["back rank", "exchange"],
-      turn: "w",
-      description: "Liquidate into checkmate on the 8th rank!"
-    },
-    {
-      id: 19,
-      title: "The Greek Gift Primer",
-      fen: "r1bq1rk1/ppp2ppp/2n1pn2/3p4/2PP4/2NBPN2/PP3PPP/R1BQK2R w KQ - 0 7",
-      moves: ["d3h7", "g8h7"],
-      rating: 1180,
-      themes: ["sacrifice", "attack"],
-      turn: "w",
-      description: "Shatter Black's king safety with a bishop sacrifice on h7."
-    },
-    {
-      id: 20,
-      title: "Discovered Check",
-      fen: "r1b1k2r/pp3ppp/2n5/3p4/1b1N4/2N5/PPP2PPP/R1B1KB1R w KQkq - 0 10",
-      moves: ["d4b5"],
-      rating: 1160,
-      themes: ["threat", "fork setup"],
-      turn: "w",
-      description: "Threaten a devastating fork on c7."
-    },
-
-    // --- 1200 - 1400: Intermediate Combinations ---
-    {
-      id: 21,
-      title: "Deflection to Deliver Mate",
-      fen: "5rk1/5ppp/8/8/8/8/1Q3PPP/4R1K1 w - - 0 1",
-      moves: ["b2b7"],
-      rating: 1220,
-      themes: ["7th rank", "pressure"],
-      turn: "w",
-      description: "Invade the 7th rank with decisive pressure."
-    },
-    {
-      id: 22,
-      title: "Overworked Defender",
-      fen: "r2q1rk1/1pp2ppp/p1n1pn2/3p4/3P4/2PBPN2/PP3PPP/R2Q1RK1 w - - 0 10",
-      moves: ["f3e5"],
-      rating: 1250,
-      themes: ["outpost", "center"],
-      turn: "w",
-      description: "Anchor your knight on the critical central outpost."
-    },
-    {
-      id: 23,
-      title: "Clearance Sacrifice",
-      fen: "r1b2rk1/pp1n1ppp/2p1pn2/q2p4/1bPP4/2N1PN2/PP1BBPPP/R2Q1RK1 w - - 4 9",
-      moves: ["a2a3", "b4c3", "d2c3"],
-      rating: 1280,
-      themes: ["trapping", "pair of bishops"],
-      turn: "w",
-      description: "Put the question to Black's dark-squared bishop."
-    },
-    {
-      id: 24,
-      title: "Queen Decoy",
-      fen: "6k1/5ppp/8/8/8/5q2/5PPP/4R1K1 w - - 0 1",
-      moves: ["e1e8"],
-      rating: 1210,
-      themes: ["back rank", "in-between move"],
-      turn: "w",
-      description: "Black is threatening your Queen, but who mates first?"
-    },
-    {
-      id: 25,
-      title: "X-Ray Attack",
-      fen: "r4rk1/pp1b1ppp/1q2pn2/3p4/8/1P1B4/P1QN1PPP/R3R1K1 w - - 0 15",
-      moves: ["d3h7", "f6h7"],
-      rating: 1310,
-      themes: ["tactical blow"],
-      turn: "w",
-      description: "Snag a pawn and expose Black's king."
-    },
-    {
-      id: 26,
-      title: "Knight Outpost Dominance",
-      fen: "r1bq1rk1/pp2bppp/2n1pn2/3p4/2PN4/1PN1P3/P3BPPP/R1BQK2R w KQ - 0 9",
-      moves: ["c4d5", "e6d5", "e1g1"],
-      rating: 1340,
-      themes: ["pawn structure", "isolated queen pawn"],
-      turn: "w",
-      description: "Isolate Black's d-pawn to create a long-term target."
-    },
-    {
-      id: 27,
-      title: "Intermezzo (Zwischenzug)",
-      fen: "r1bqk2r/pp2bppp/2n1pn2/2pp4/3P4/2PBPN2/PP3PPP/RNBQ1RK1 w kq - 2 7",
-      moves: ["d4c5", "e7c5", "b2b4"],
-      rating: 1370,
-      themes: ["tempo", "queenside expansion"],
-      turn: "w",
-      description: "Win a tempo on the bishop and expand on the queenside."
-    },
-    {
-      id: 28,
-      title: "Smothered Mate in Two",
-      fen: "6k1/5Npp/8/8/8/8/8/Q3K3 w - - 0 1",
-      moves: ["a1a2", "g8f8", "f7d6"],
-      rating: 1390,
-      themes: ["discovered check", "mating net"],
-      turn: "w",
-      description: "Set up the battery with Queen and Knight."
-    },
-
-    // --- 1400 - 1600: Advanced Combinations & Sacrifices ---
-    {
-      id: 29,
-      title: "Windmill Tactic Setup",
-      fen: "4r1k1/5ppp/8/8/8/8/1R3PPP/4R1K1 w - - 0 1",
-      moves: ["e1e8"],
-      rating: 1420,
-      themes: ["rook endgame", "back rank"],
-      turn: "w",
-      description: "Cash in on the open e-file with checkmate!"
-    },
-    {
-      id: 30,
-      title: "Queen Sacrifice for Mate",
-      fen: "r1b2rk1/2p2ppp/p7/1p6/3P2nq/1BP2Q1P/PP3PPb/RNB1R1K1 w - - 1 16",
-      moves: ["g1f1", "c8b7", "f3g4"],
-      rating: 1540,
-      themes: ["counterattack", "defense"],
-      turn: "w",
-      description: "Navigate the razor-sharp tactical storm."
-    },
-    {
-      id: 31,
-      title: "Zugzwang in Pawn Endgame",
-      fen: "8/8/5k2/5p1p/5P1P/5K2/8/8 w - - 0 1",
-      moves: ["f3e3", "f6e6", "e3d4"],
-      rating: 1480,
-      themes: ["endgame", "opposition"],
-      turn: "w",
-      description: "Outmaneuver the Black king to seize key squares."
-    },
-    {
-      id: 32,
-      title: "Boden's Mate Pattern",
-      fen: "2kr3r/ppp2ppp/2n5/8/1b2B3/2P2N2/PP3PPP/R1B1K2R w KQ - 1 12",
-      moves: ["c3b4", "h8e8", "e1g1"],
-      rating: 1460,
-      themes: ["piece coordination", "unpinning"],
-      turn: "w",
-      description: "Castling breaks the pin and saves your piece."
-    },
-
-    // --- 1600+: Expert Tactics & Endgame Mastery ---
-    {
-      id: 33,
-      title: "Lucena Position Technique",
-      fen: "1K1k4/1P6/8/8/8/8/5r2/2R5 w - - 0 1",
-      moves: ["c1c4", "f2f1", "b8a7"],
-      rating: 1650,
-      themes: ["lucena", "building a bridge"],
-      turn: "w",
-      description: "Execute the famous bridge-building maneuver to promote."
-    },
-    {
-      id: 34,
-      title: "Philidor Defense Endgame",
-      fen: "8/8/8/8/4k3/8/4K1r1/4R3 w - - 0 1",
-      moves: ["e2f1", "e4f3", "e1e3"],
-      rating: 1720,
-      themes: ["drawing defense", "perpetual"],
-      turn: "w",
-      description: "Find the defensive resource to hold the draw."
-    },
-    {
-      id: 35,
-      title: "Mating Net with Minor Pieces",
-      fen: "5rk1/5ppp/8/8/1B6/3B4/8/4K2R w K - 0 1",
-      moves: ["d3h7", "g8h8", "h7e4"],
-      rating: 1680,
-      themes: ["discovered check", "windmill"],
-      turn: "w",
-      description: "The classic discovered check with bishop pair!"
-    }
-  ];
-
-  // ── LESSONS DATABASE ────────────────────────────────────────────────────────
-  // Matches the cards in index.html:
-  // - pieces-movement
-  // - checkmate-basics
-  // - special-moves
-  // - forks
-  // - pins-skewers
-  // - opening-principles
-  // - endgame-basics
-  // - sacrifices
-
-  window.LESSONS_DB = {
-    'pieces-movement': {
-      title: "How Pieces Move",
-      category: "Beginner",
-      badgeClass: "beginner",
-      description: "Learn how each piece moves across the board",
-      steps: [
-        {
-          title: "The Pawn",
-          fen: "8/8/8/8/8/4P3/8/8 w - - 0 1",
-          narration: "Pawns move forward one square at a time. From their starting square, they can choose to jump two squares forward!",
-          instruction: "Move the pawn forward two squares to e4.",
-          targetMove: "e3e4",
-          highlightSquares: ["e3", "e4"]
-        },
-        {
-          title: "Pawn Captures",
-          fen: "8/8/8/3p4/4P3/8/8/8 w - - 0 1",
-          narration: "Pawns capture differently than they move! They capture diagonally forward one square.",
-          instruction: "Capture the enemy pawn on d5.",
-          targetMove: "e4d5",
-          highlightSquares: ["e4", "d5"]
-        },
-        {
-          title: "The Knight's Leap",
-          fen: "8/8/8/8/4N3/8/8/8 w - - 0 1",
-          narration: "The Knight moves in an 'L' shape: two squares in one direction, then one square perpendicular. It can jump over other pieces!",
-          instruction: "Jump your knight to f6.",
-          targetMove: "e4f6",
-          highlightSquares: ["e4", "f6"]
-        },
-        {
-          title: "The Bishop's Diagonals",
-          fen: "8/8/8/8/3B4/8/8/8 w - - 0 1",
-          narration: "The Bishop moves diagonally as far as it likes on squares of its own color. It can never switch square colors!",
-          instruction: "Slide your bishop all the way to g7.",
-          targetMove: "d4g7",
-          highlightSquares: ["d4", "g7"]
-        },
-        {
-          title: "The Rook's Ranks & Files",
-          fen: "8/8/8/8/3R4/8/8/8 w - - 0 1",
-          narration: "The Rook is a powerful heavy piece! It moves horizontally along ranks and vertically along files as far as it pleases.",
-          instruction: "Move your rook to the open d8 square.",
-          targetMove: "d4d8",
-          highlightSquares: ["d4", "d8"]
-        },
-        {
-          title: "The Mighty Queen",
-          fen: "8/8/8/8/3Q4/8/8/8 w - - 0 1",
-          narration: "The Queen combines the powers of the Rook and Bishop! She can move diagonally, horizontally, or vertically any distance.",
-          instruction: "Sweep the queen across to h4.",
-          targetMove: "d4h4",
-          highlightSquares: ["d4", "h4"]
-        },
-        {
-          title: "The King",
-          fen: "8/8/8/8/4K3/8/8/8 w - - 0 1",
-          narration: "The King is your most valuable piece. If he is trapped, you lose! He moves one square in any direction.",
-          instruction: "Step your king forward to e5.",
-          targetMove: "e4e5",
-          highlightSquares: ["e4", "e5"]
-        }
-      ]
-    },
-
-    'checkmate-basics': {
-      title: "Checkmate Basics",
-      category: "Beginner",
-      badgeClass: "beginner",
-      description: "Understanding check, checkmate, and stalemate",
-      steps: [
-        {
-          title: "What is Check?",
-          fen: "4k3/8/8/8/8/8/4R3/4K3 w - - 0 1",
-          narration: "Check occurs when a king is under direct attack. When in check, you MUST get out of check immediately!",
-          instruction: "Notice Black's King is in check along the e-file.",
-          targetMove: null,
-          highlightSquares: ["e2", "e8"]
-        },
-        {
-          title: "The 3 Ways Out: Escape",
-          fen: "4k3/8/8/8/8/8/4R3/4K3 b - - 0 1",
-          narration: "CPR: Capture the attacker, Protect with a block, or Run away with the King. Here the King can run!",
-          instruction: "Step the Black king to d8 to escape the check.",
-          targetMove: "e8d8",
-          highlightSquares: ["e8", "d8"]
-        },
-        {
-          title: "Back Rank Checkmate",
-          fen: "6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1",
-          narration: "When the enemy king is trapped behind his own pawns with no escape flight squares, a rook on the back rank delivers checkmate!",
-          instruction: "Deliver back-rank checkmate by moving your rook to a8.",
-          targetMove: "a1a8",
-          highlightSquares: ["a1", "a8"]
-        },
-        {
-          title: "Queen & Helper Checkmate",
-          fen: "r1bqkb1r/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 0 1",
-          narration: "A Queen supported by another piece right in front of the enemy King cannot be captured because of the defender!",
-          instruction: "Deliver checkmate with Qxf7#.",
-          targetMove: "h5f7",
-          highlightSquares: ["h5", "f7"]
-        }
-      ]
-    },
-
-    'special-moves': {
-      title: "Special Moves",
-      category: "Beginner",
-      badgeClass: "beginner",
-      description: "Castling, en passant, and pawn promotion",
-      steps: [
-        {
-          title: "Kingside Castling",
-          fen: "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
-          narration: "Castling allows you to move your King two squares toward a rook and bring that rook to the other side of the king in ONE move!",
-          instruction: "Castle kingside by moving your King to g1.",
-          targetMove: "e1g1",
-          highlightSquares: ["e1", "g1"]
-        },
-        {
-          title: "Pawn Promotion",
-          fen: "8/4P3/8/8/8/8/5k2/4K3 w - - 0 1",
-          narration: "When a pawn reaches the opposite end of the board, it promotes into a Queen, Rook, Bishop, or Knight!",
-          instruction: "Promote your pawn to a Queen on e8.",
-          targetMove: "e7e8q",
-          highlightSquares: ["e7", "e8"]
-        },
-        {
-          title: "En Passant",
-          fen: "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3",
-          narration: "If an enemy pawn moves two squares forward and lands right next to your pawn, you can capture it diagonally behind as if it only moved one square!",
-          instruction: "Capture the f5 pawn en passant by playing exf6.",
-          targetMove: "e5f6",
-          highlightSquares: ["e5", "f6"]
-        }
-      ]
-    },
-
-    'forks': {
-      title: "Forks & Double Attacks",
-      category: "Intermediate",
-      badgeClass: "intermediate",
-      description: "Attack two pieces at once",
-      steps: [
-        {
-          title: "The Knight Fork",
-          fen: "r3k2r/ppp2ppp/8/3n4/8/2N5/PPP2PPP/R3K2R w KQkq - 0 1",
-          narration: "Knights are famous for branching out in unexpected angles. When a piece attacks two enemy targets at once, it's called a fork!",
-          instruction: "Fork the enemy king and rook by playing Nd5.",
-          targetMove: "c3d5",
-          highlightSquares: ["c3", "d5"]
-        },
-        {
-          title: "Pawn Fork",
-          fen: "r1bqk2r/pppp1ppp/8/4n3/1b2P3/2P5/PP1B1PPP/RN1QKB1R w KQkq - 0 8",
-          narration: "Even lowly pawns can deliver devastating forks against valuable minor pieces!",
-          instruction: "Push your pawn to c3 to attack the bishop.",
-          targetMove: "c2c3",
-          highlightSquares: ["c2", "c3"]
-        }
-      ]
-    },
-
-    'pins-skewers': {
-      title: "Pins & Skewers",
-      category: "Intermediate",
-      badgeClass: "intermediate",
-      description: "Use line attacks to win material",
-      steps: [
-        {
-          title: "The Absolute Pin",
-          fen: "4k3/8/4r3/8/8/8/4B3/4K2R w - - 0 1",
-          narration: "A pin occurs when a piece cannot move because doing so would expose a more valuable piece behind it. An absolute pin shields the King!",
-          instruction: "Notice the Black rook on e6 is pinned to the King on e8.",
-          targetMove: null,
-          highlightSquares: ["e2", "e6", "e8"]
-        },
-        {
-          title: "The Deadly Skewer",
-          fen: "4k2r/8/8/8/8/8/B7/4K3 w - - 0 1",
-          narration: "A skewer is the reverse of a pin: the more valuable piece is in FRONT. When it moves out of danger, the piece behind is taken!",
-          instruction: "Check the King with Bd5 to skewer the King and Rook.",
-          targetMove: "a2d5",
-          highlightSquares: ["a2", "d5"]
-        }
-      ]
-    },
-
-    'opening-principles': {
-      title: "Opening Principles",
-      category: "Intermediate",
-      badgeClass: "intermediate",
-      description: "Control the center and develop your pieces",
-      steps: [
-        {
-          title: "1. Control the Center",
-          fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-          narration: "The four central squares (e4, d4, e5, d5) are prime real estate. Controlling them gives your pieces room to operate.",
-          instruction: "Stake your claim in the center with 1. e4!",
-          targetMove: "e2e4",
-          highlightSquares: ["e2", "e4", "e5", "d4", "d5"]
-        },
-        {
-          title: "2. Develop Knights before Bishops",
-          fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
-          narration: "Knights usually have clear developing squares that attack the center immediately, like f3.",
-          instruction: "Develop your knight with Nf3, putting pressure on e5.",
-          targetMove: "g1f3",
-          highlightSquares: ["g1", "f3"]
-        },
-        {
-          title: "3. Develop Bishops with Purpose",
-          fen: "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 1 3",
-          narration: "Bring out your light-squared bishop to exert pressure toward the vulnerable f7 weakness.",
-          instruction: "Play Bc4 to begin the Italian Game.",
-          targetMove: "f1c4",
-          highlightSquares: ["f1", "c4"]
-        }
-      ]
-    },
-
-    'endgame-basics': {
-      title: "Endgame Essentials",
-      category: "Advanced",
-      badgeClass: "advanced",
-      description: "King and pawn endings, opposition, and more",
-      steps: [
-        {
-          title: "The Opposition",
-          fen: "8/8/4k3/8/4K3/8/8/8 w - - 0 1",
-          narration: "Opposition is when two kings face each other with only one square between them. The player who does NOT have to move holds the opposition!",
-          instruction: "Step forward into the opposition with Kd4 or Ke3.",
-          targetMove: "e4d4",
-          highlightSquares: ["e4", "d4"]
-        },
-        {
-          title: "Guiding the Passed Pawn",
-          fen: "8/8/8/4k3/4P3/4K3/8/8 w - - 0 1",
-          narration: "In king and pawn endgames, keeping your king in front of or shoulder-to-shoulder with your passed pawn is the key to winning.",
-          instruction: "March your king forward to d3 or f3.",
-          targetMove: "e3d3",
-          highlightSquares: ["e3", "d3"]
-        }
-      ]
-    },
-
-    'sacrifices': {
-      title: "Tactical Sacrifices",
-      category: "Advanced",
-      badgeClass: "advanced",
-      description: "Give up material to gain a decisive advantage",
-      steps: [
-        {
-          title: "The Greek Gift Sacrifice",
-          fen: "r1bq1rk1/ppp2ppp/2n1pn2/3p4/2PP4/2NBPN2/PP3PPP/R1BQK2R w KQ - 0 7",
-          narration: "Sacrificing the bishop on h7 tears open the enemy King's pawn shelter and invites your Queen and Knight into the attack!",
-          instruction: "Smash through with Bxh7+!",
-          targetMove: "d3h7",
-          highlightSquares: ["d3", "h7"]
-        }
-      ]
-    }
-  };
-
-})();
+/* Puzzles: a curated sample of the Lichess puzzle database (CC0, database.lichess.org).
+ * fen is the position before the opponent's move; moves[0] is that opponent move,
+ * then the solver and opponent alternate. Moves are UCI strings. */
+window.CT = window.CT || {};
+window.CT.PUZZLES = [{"id":"1fSFn","fen":"r5R1/pp2kp1B/3rp3/q2p3P/8/1Pp1PP1N/PbQ5/1K1R4 w - - 6 23","moves":["g8a8","a5a2","b1a2","d6a6","a2b1","a6a1"],"rating":835,"themes":["Attraction","Mate in 3","Queenside attack"],"url":"https://lichess.org/btsDQIMB#44"},
+{"id":"snpPh","fen":"5R2/1r3p2/p3pPp1/P2pP1N1/1k4P1/2p3K1/8/8 w - - 0 48","moves":["f8f7","b7f7","g5f7","c3c2","f7g5","c2c1q"],"rating":1098,"themes":["Advanced pawn","Promotion"],"url":"https://lichess.org/I4e6wWTb#94"},
+{"id":"vZXQ2","fen":"3k2r1/1R6/p1p5/P2p4/3P4/2P3BP/2r3PK/8 b - - 0 40","moves":["c2c3","b7b8","d8e7","b8g8"],"rating":1099,"themes":["Skewer"],"url":"https://lichess.org/luDIkrt7/black#79"},
+{"id":"ERntX","fen":"r1b2rk1/2q2pp1/p4n2/1pn4p/4P1PP/P1BB1P2/1PPQ4/2KR3R w - - 1 18","moves":["c3f6","c5b3","c1b1","b3d2"],"rating":1106,"themes":["Pin","Queenside attack"],"url":"https://lichess.org/l7PAjz7s#34"},
+{"id":"FAm0D","fen":"3rr1k1/1R3ppp/p1n5/3N4/8/5Q2/q4PPP/3R2K1 b - - 0 23","moves":["d8d5","f3f7","g8h8","f7e8"],"rating":1134,"themes":["Fork","Mate in 2"],"url":"https://lichess.org/8Nkhh5Kg/black#45"},
+{"id":"csSfA","fen":"r1q1kb1r/1b3p1p/pp3n2/1N2Q3/3p4/3P3P/PPP2PP1/R3KB1R b KQkq - 0 15","moves":["f8e7","b5d6","e8f8","d6c8"],"rating":1139,"themes":["Fork"],"url":"https://lichess.org/L5uiWOyM/black#29"},
+{"id":"nVmDK","fen":"8/r5k1/3Q4/3q2p1/2pP4/Pp6/1P3r2/KR6 w - - 0 52","moves":["d6d5","a7a3","b2a3","f2a2"],"rating":1149,"themes":["Mate in 2","Queen and rook endgame","Sacrifice"],"url":"https://lichess.org/tqXWBjzW#102"},
+{"id":"fsYOv","fen":"6k1/pb3ppp/1p6/2p1Q3/B1P2qP1/P4P1P/1P4r1/4R1K1 w - - 1 31","moves":["g1g2","f4f3","g2h2","f3f2"],"rating":1161,"themes":["Mate in 2"],"url":"https://lichess.org/2kNnWoZi#60"},
+{"id":"7Lx1z","fen":"7k/6p1/1rq2p1p/1QpRb3/2P1P3/5P1P/6P1/5NK1 w - - 0 35","moves":["b5c5","c6c5","d5c5","e5d4","g1h2","d4c5"],"rating":1166,"themes":["Attraction","Fork"],"url":"https://lichess.org/96M1o31E#68"},
+{"id":"pUDTm","fen":"3r1rk1/p1qR1pp1/1pp1p2p/8/4Nb2/P4P2/1PQ1BP1P/4K1R1 b - - 0 19","moves":["d8d7","e4f6","g8h8","c2h7"],"rating":1174,"themes":["Kingside attack","Mate in 2","Pin"],"url":"https://lichess.org/r0yJA2wq/black#37"},
+{"id":"lxRu6","fen":"5k1r/1q4b1/5p1p/R1Q5/P2p4/8/1rP3PP/R5K1 b - - 3 26","moves":["f8f7","a5a7","b7a7","c5a7"],"rating":1176,"themes":["Pin"],"url":"https://lichess.org/C9SNpK4O/black#51"},
+{"id":"eN1Ve","fen":"r1b2rk1/ppp2p1p/2np1p2/2b1p3/4P1P1/2PP1N2/PP3P1P/RN2KB1R b KQ - 1 9","moves":["c8g4","h1g1","g8h8","g1g4"],"rating":1179,"themes":["Pin"],"url":"https://lichess.org/HtkaEddP/black#17"},
+{"id":"1ajPB","fen":"5Qk1/1b1qn2p/pp1p2p1/2pPn3/2P2N2/1PNB4/P5PP/5RK1 b - - 0 22","moves":["g8f8","f4e6","f8g8","f1f8"],"rating":1179,"themes":["Double check","Mate in 2"],"url":"https://lichess.org/DSmI7TfD/black#43"},
+{"id":"M0Ao6","fen":"2rq1r2/p2nb1kB/b2pppP1/7P/2nP4/5N2/P1QN1P2/2KR3R b - - 0 21","moves":["c4d2","h5h6","g7h8","g6g7"],"rating":1180,"themes":["Advanced pawn","Mate in 2"],"url":"https://lichess.org/XAxBHqUV/black#41"},
+{"id":"FJsqi","fen":"r7/ppkb3p/6p1/2p3Q1/4PP1K/2P3R1/1BP1q2P/8 w - - 8 39","moves":["c3c4","e2h2","g3h3","h2h3"],"rating":1180,"themes":["Mate in 2"],"url":"https://lichess.org/LflDZX7f#76"},
+{"id":"wQTHH","fen":"4r1k1/p1p2ppp/1pnr4/8/2P1N3/P1qP2PP/4QP2/1R2R1K1 b - - 0 22","moves":["c3d4","e4f6","g7f6","e2e8"],"rating":1182,"themes":["Discovered attack","Kingside attack"],"url":"https://lichess.org/gKP7bj7X/black#43"},
+{"id":"gNKly","fen":"r5k1/3nRp1p/3p2p1/2pq4/1r6/PPQ4P/3N2P1/R2K4 b - - 1 27","moves":["b4b3","c3b3","d5b3","d2b3"],"rating":1184,"themes":["Tactics"],"url":"https://lichess.org/eWYes8Nv/black#53"},
+{"id":"eWm8a","fen":"8/6nk/7p/6p1/Q7/P2K3P/rp3PP1/8 w - - 0 44","moves":["a4b3","a2a3","b3a3","b2b1q"],"rating":1184,"themes":["Advanced pawn","Deflection","Pin"],"url":"https://lichess.org/qXqpo1uO#86"},
+{"id":"wggdx","fen":"8/8/8/3K4/8/p2k4/P7/8 w - - 3 62","moves":["d5c5","d3c3","c5b5","c3b2","b5b4","b2a2","b4c3","a2b1"],"rating":1194,"themes":["Pawn endgame"],"url":"https://lichess.org/j7XRgF90#122"},
+{"id":"6o7W8","fen":"8/2p3k1/pp1p1brp/3PqB2/3pP2P/3P4/PP1Q3K/5R2 w - - 1 29","moves":["d2f4","e5f4","f1f4","f6e5","h2h3","e5f4","f5g6","g7g6"],"rating":1196,"themes":["Attraction","Clearance","Pin"],"url":"https://lichess.org/tsGWrP8J#56"},
+{"id":"AdkYm","fen":"r5r1/pb1pk3/2pR1n2/1p2q2p/1P2P3/2N2QP1/1P3P1p/3R3K b - - 0 25","moves":["f6g4","d6d7","e7e8","f3f7"],"rating":1196,"themes":["Fork","Mate in 2"],"url":"https://lichess.org/HQfRrtWb/black#49"},
+{"id":"u7Jds","fen":"2r3k1/1p1nbp2/p2p1n1Q/3Pp1N1/1P6/q6P/5PP1/1B1R2K1 b - - 2 25","moves":["c8c1","b1h7","f6h7","h6h7","g8f8","h7f7"],"rating":1197,"themes":["Kingside attack","Mate in 3"],"url":"https://lichess.org/fNyb7Qr7/black#49"},
+{"id":"Dxw1r","fen":"1r6/3B2b1/3p2kp/4p3/4Pp1B/3P4/1r3PPK/2R5 b - - 3 36","moves":["g7f6","d7f5","g6f7","c1c7","f7e8","h4f6"],"rating":1281,"themes":["Deflection"],"url":"https://lichess.org/h6wr57Y3/black#71"},
+{"id":"PeMod","fen":"r1b3r1/1pp4k/p2p3p/3P1p2/1PPNn1qP/P1B1P3/2QN1p1R/2R4K w - - 7 33","moves":["d2e4","g4g1","c1g1","f2g1q"],"rating":1281,"themes":["Advanced pawn","Kingside attack","Mate in 2"],"url":"https://lichess.org/rjnECn0C#64"},
+{"id":"zWbUu","fen":"r3k3/5p2/p3p1p1/3q4/8/2b1Q3/P3NP1P/R4K2 w q - 0 24","moves":["e2c3","d5h1","f1e2","h1a1"],"rating":1282,"themes":["Skewer"],"url":"https://lichess.org/XCuDQThp#46"},
+{"id":"D587f","fen":"3r2rk/pp2qppp/2p5/3BP1R1/7Q/2PP4/P1PK3P/6R1 b - - 0 26","moves":["c6d5","h4h7","h8h7","g5h5"],"rating":1286,"themes":["Attraction","Kingside attack","Mate in 2"],"url":"https://lichess.org/aNPHX7Xf/black#51"},
+{"id":"5Q6Pb","fen":"1k1q1bnr/pp4pp/2p2pn1/4P3/5PQ1/2N1B3/PPP3PP/3R2K1 b - - 1 19","moves":["d8c8","e3a7","b8a7","g4c8"],"rating":1292,"themes":["Deflection","Queenside attack"],"url":"https://lichess.org/mZMwmVLj/black#37"},
+{"id":"pTBWd","fen":"5rk1/p3pp1p/6p1/3Nb3/1q6/5Q2/PP4PP/3R3K b - - 3 24","moves":["b4b7","d5f6","e7f6","f3b7"],"rating":1323,"themes":["Discovered attack"],"url":"https://lichess.org/wsg04lX4/black#47"},
+{"id":"qfbAZ","fen":"8/5pk1/1P3q1p/2Q3p1/r7/6P1/5PBP/r4RK1 b - - 0 30","moves":["f6d4","c5d4","a4d4","f1a1"],"rating":1331,"themes":["Tactics"],"url":"https://lichess.org/4PvxjL3E/black#59"},
+{"id":"XJYS0","fen":"3rr1k1/1p3p1p/p5p1/2p5/P7/1PNP1bP1/3R1P1P/R4K2 w - - 0 23","moves":["a1e1","f3g2","f1g2","e8e1"],"rating":1334,"themes":["Deflection"],"url":"https://lichess.org/AmexbJ4M#44"},
+{"id":"vbKrI","fen":"8/ppb3k1/6p1/3pNp2/3P1P1q/P3P3/1P4Rr/5KQ1 b - - 5 39","moves":["h2h1","g2g6","g7f8","g6g8","f8e7","e5g6"],"rating":1337,"themes":["Tactics"],"url":"https://lichess.org/E9ADnm7i/black#77"},
+{"id":"rnGbb","fen":"2r1kb1r/1Q1b1ppp/p1n1p3/q2pPn2/3P4/P1N2N1P/1P2BPP1/1RB2RK1 w k - 1 15","moves":["e2a6","c8b8","b7b8","c6b8"],"rating":1344,"themes":["Trapped piece"],"url":"https://lichess.org/krSefL1f#28"},
+{"id":"faFVi","fen":"1r1q1rk1/n2p1p1p/Bp4p1/3N4/P1P5/4R1P1/1P3P1P/R5K1 b - - 0 19","moves":["f8e8","e3e8","d8e8","d5f6","g8f8","f6e8"],"rating":1357,"themes":["Attraction","Fork"],"url":"https://lichess.org/7OHdXwD0/black#37"},
+{"id":"zkSj7","fen":"5r2/p5pk/2p5/n7/4r3/6bP/PPPB1PK1/R4R2 w - - 0 28","moves":["f2g3","e4e2","g2g1","f8f1","a1f1","e2d2"],"rating":1359,"themes":["Fork"],"url":"https://lichess.org/CLUn7O5D#54"},
+{"id":"RCLMB","fen":"2kr3r/ppp2ppp/2np4/4pb2/4q3/2P1PN1P/PP1KB1P1/RN1QR3 w - - 6 12","moves":["e2b5","e4d5","d2c1","d5b5"],"rating":1359,"themes":["Fork"],"url":"https://lichess.org/DjN1Jx8w#22"},
+{"id":"sh8in","fen":"3rr1k1/1ppbqpp1/p1n4p/2P5/3PB3/P7/1BQ2PPP/R3R1K1 b - - 2 20","moves":["f7f5","e4d5","g8h7","e1e7"],"rating":1381,"themes":["Discovered attack","Kingside attack"],"url":"https://lichess.org/WaPuACpz/black#39"},
+{"id":"GcGJq","fen":"2kr1b2/1b1p1pp1/1p6/pNp3R1/P1P1P3/1N1K1P2/1P5q/R1B5 b - - 8 28","moves":["h2h1","b5a7","c8b8","c1f4","b8a7","a1h1"],"rating":1390,"themes":["Discovered attack"],"url":"https://lichess.org/auDoJYSb/black#55"},
+{"id":"l6tLj","fen":"2Q5/r4bkp/1q1p1pp1/2p1p2P/2P1PP2/3P1BP1/4N1K1/8 b - - 0 36","moves":["b6c7","h5h6","g7h6","c8f8"],"rating":1395,"themes":["Attraction","Mate in 2"],"url":"https://lichess.org/sezcd4y9/black#71"},
+{"id":"INFt0","fen":"5rk1/6p1/1pn1q2p/p1p1nP2/2Pp2p1/PP1P2P1/3Q2BP/1N3RK1 b - - 0 31","moves":["f8f5","g2d5","e5f3","f1f3","f5d5","c4d5"],"rating":1401,"themes":["Pin"],"url":"https://lichess.org/vQm9q70v/black#61"},
+{"id":"H88NX","fen":"5r1k/p3q1pp/5b2/3Bp3/3p2Q1/7R/PPr3PP/R6K b - - 1 22","moves":["f8c8","h3h7","h8h7","g4h5"],"rating":1409,"themes":["Attraction","Mate in 2","Sacrifice"],"url":"https://lichess.org/yfMptzJK/black#43"},
+{"id":"2eM9s","fen":"r1bqkb1r/1p2pppp/p2p1n2/4P3/2BQ4/8/PPP2PPP/RNB2RK1 b kq - 0 8","moves":["d6e5","c4f7","e8f7","d4d8"],"rating":1412,"themes":["Attack on f7","Deflection"],"url":"https://lichess.org/7kBQPWJd/black#15"},
+{"id":"hJUup","fen":"6rk/7p/p2p1r1q/1ppPp3/4Qp2/P2P1P1b/1PP3PK/4R1R1 w - - 0 29","moves":["g2h3","h6h3","h2h3","f6h6"],"rating":1412,"themes":["Attraction","Mate in 2","Sacrifice"],"url":"https://lichess.org/ukts8Hdh#56"},
+{"id":"7IBYl","fen":"rnb1kb1r/2q2ppp/p2n4/1p1Np3/8/4B3/PPP1QPPP/2KR1B1R b kq - 3 11","moves":["c7c4","e2c4","b5c4","d5c7"],"rating":1427,"themes":["Tactics"],"url":"https://lichess.org/sQwheUVm/black#21"},
+{"id":"dCjBK","fen":"r1b2rk1/1p3pp1/p5np/2bpqN1Q/4p1B1/2P4P/PP3PP1/R1B1R1K1 b - - 1 23","moves":["g6f4","f5h6","g7h6","h5e5"],"rating":1432,"themes":["Discovered attack","Kingside attack"],"url":"https://lichess.org/IC5bqt5l/black#45"},
+{"id":"bDnbO","fen":"r4k2/3q1p1R/p1n1p3/3pP1r1/P1pP2P1/2P4P/2Q3K1/5R2 b - - 1 33","moves":["g5g7","h7h8","f8e7","h8a8","d7b7","a8h8"],"rating":1449,"themes":["Defence","Skewer"],"url":"https://lichess.org/y74WBW9G/black#65"},
+{"id":"d3twI","fen":"r2q1rk1/ppp3p1/2n1pn1p/4b3/7N/P1NP3P/1PP3P1/R1BQ1RK1 w - - 0 14","moves":["c1d2","d8d4","g1h1","d4h4"],"rating":1451,"themes":["Fork"],"url":"https://lichess.org/2zBIZDfU#26"},
+{"id":"ofvdm","fen":"r2q3r/pp3kp1/4Rn2/8/2QP1B2/1P5P/P4P2/6K1 b - - 2 26","moves":["d8d5","e6f6","g7f6","c4d5"],"rating":1463,"themes":["Tactics"],"url":"https://lichess.org/N93AeAvE/black#51"},
+{"id":"SMEY4","fen":"8/5kpp/2K1b3/p4p2/R1p2P2/2R3P1/P2rP2P/8 w - - 6 31","moves":["c3e3","e6d7","c6b6","d7a4"],"rating":1492,"themes":["Skewer"],"url":"https://lichess.org/OesmumxC#60"},
+{"id":"fKhdQ","fen":"1r3rk1/p4ppp/q3p3/3pP2P/P1p3Q1/1P2R3/2P3P1/R6K b - - 0 22","moves":["h7h6","e3g3","g7g5","h5g6"],"rating":1494,"themes":["En passant","Quiet move"],"url":"https://lichess.org/IN2kIueR/black#43"},
+{"id":"60wgf","fen":"r1b1kb1r/5ppp/pqNp1n2/8/4P3/8/PP3PPP/RNBQ1RK1 w kq - 1 11","moves":["d1a4","c8d7","a4d4","b6c6"],"rating":1494,"themes":["Tactics"],"url":"https://lichess.org/PWXg73HE#20"},
+{"id":"M2m6N","fen":"1r4k1/pp4p1/2pb3p/3R4/4nP2/1Q6/PPK5/R1B2q2 b - - 3 27","moves":["f1e2","d5d2","g8h8","d2e2"],"rating":1554,"themes":["Discovered attack"],"url":"https://lichess.org/mqehBJYm/black#53"},
+{"id":"SJPZL","fen":"1r3rk1/pb3pp1/2n1p2p/1p6/2P4P/q2BRN2/P1Q2PP1/3R2K1 b - - 0 21","moves":["c6b4","d3h7","g8h8","e3a3","b4c2","h7c2"],"rating":1586,"themes":["Discovered attack"],"url":"https://lichess.org/mOHjHVpi/black#41"},
+{"id":"hKltG","fen":"r1b1k1nr/ppp2ppp/2np1q2/2bQ1NB1/4P3/8/PPP2PPP/RN2KB1R b KQkq - 1 7","moves":["f6g5","f5d6","c5d6","d5g5"],"rating":1607,"themes":["Discovered attack"],"url":"https://lichess.org/YA55pSK6/black#13"},
+{"id":"QpOvd","fen":"4r2k/3R3p/r1N5/p5R1/Pp2p1P1/2b1P2P/5P2/6K1 w - - 1 30","moves":["c6e7","c3f6","g5f5","f6e7"],"rating":1610,"themes":["Tactics"],"url":"https://lichess.org/u8IbPjdY#58"},
+{"id":"frty0","fen":"2r1k2r/5pp1/p3p3/1p4Q1/4p3/1P5P/KPq2P2/3R3R b k - 1 24","moves":["c2c5","d1d8","c8d8","g5c5"],"rating":1610,"themes":["Deflection"],"url":"https://lichess.org/T2o6p4wN/black#47"},
+{"id":"irxDi","fen":"r7/2p2pkp/2pr1qp1/8/P4P2/4P3/2Q2P1P/R1R4K w - - 3 22","moves":["c2c3","d6d1","h1g2","f6c3","c1c3","d1a1"],"rating":1611,"themes":["Remove the defender"],"url":"https://lichess.org/HWKwtqSv#42"},
+{"id":"DDPRJ","fen":"8/1bp2pk1/pp1p2p1/8/5P1Q/3Bq2P/PbP2NPK/8 b - - 2 28","moves":["b2f6","h4f6","g7f6","f2g4","f6g7","g4e3"],"rating":1611,"themes":["Attraction","Fork","Sacrifice"],"url":"https://lichess.org/rK6uqcH2/black#55"},
+{"id":"Weziw","fen":"4r2k/5R1p/1b4p1/1p1N4/1P2n3/2Pq3P/5PPQ/5RK1 w - - 0 32","moves":["d5b6","d3f1","g1f1","e4d2","f1g1","e8e1"],"rating":1623,"themes":["Attraction","Back rank mate","Mate in 3"],"url":"https://lichess.org/QieGQCpc#62"},
+{"id":"rWbfh","fen":"rn2kbnr/pp1b1ppp/8/3qp3/1Q6/5N2/PP1P1PPP/RNB1KB1R w KQkq - 0 8","moves":["f1c4","d5e4","e1f1","f8b4"],"rating":1639,"themes":["Tactics"],"url":"https://lichess.org/x5OERkUK#14"},
+{"id":"ZrgCo","fen":"8/p3P2R/1p1k4/2p2K1p/2P4r/1P6/P6p/8 b - - 0 52","moves":["h2h1q","e7e8n","d6c6","h7c7"],"rating":1653,"themes":["Advanced pawn","Mate in 2","Promotion"],"url":"https://lichess.org/wOOnQcXR/black#103"},
+{"id":"YJEsd","fen":"8/6pk/2p4p/7P/1K1PN3/2P2P2/6r1/8 b - - 1 37","moves":["g2b2","b4c5","b2a2","c5c6"],"rating":1655,"themes":["Defence"],"url":"https://lichess.org/zzXBmNMF/black#73"},
+{"id":"xlfnP","fen":"rnbq3r/pp1pnkbp/2p3p1/4P1N1/3Q4/2P5/PP3PPP/RNB2RK1 b - - 1 10","moves":["f7f8","g5e6","d7e6","d4d8"],"rating":1672,"themes":["Tactics"],"url":"https://lichess.org/AsdCjMQ9/black#19"},
+{"id":"bm2Oc","fen":"r2q1rk1/p3bpp1/2p2n1p/4p3/2B1P1b1/2N2Q2/PPP3PP/R1B1R1K1 w - - 2 13","moves":["f3g3","d8d4","g1h1","d4c4"],"rating":1672,"themes":["Fork"],"url":"https://lichess.org/1Gj2CAR8#24"},
+{"id":"b2X9d","fen":"6k1/5pp1/4p2p/4q3/2Qn4/BP5P/1P3PPK/8 w - - 2 34","moves":["h2h1","e5e1","h1h2","d4e2","c4e2","e1e2"],"rating":1733,"themes":["Quiet move"],"url":"https://lichess.org/CX3PIsrj#66"},
+{"id":"8pV72","fen":"8/p4r1k/6pp/8/P1P1P3/5q2/1Q2KP2/2RR4 w - - 5 36","moves":["e2d2","f3f2","d2c3","f7f3","d1d3","f3d3","c3d3","f2b2"],"rating":1846,"themes":["Exposed king"],"url":"https://lichess.org/tcRB0dwP#70"},
+{"id":"lmVyL","fen":"2kr1b1r/p5pp/5p2/1Np1p2n/5P1B/p3P2P/1PP2P2/3RKBR1 w - - 0 18","moves":["f4e5","d8d1","e1d1","a3a2"],"rating":1880,"themes":["Advanced pawn"],"url":"https://lichess.org/NpofoCDo#34"},
+{"id":"BOt7Z","fen":"2rqk2r/1p1bnpp1/pb2p2p/3pP3/3P3B/P1NQ4/3N1PPP/2R2RK1 b k - 1 20","moves":["d8c7","h4e7","e8e7","c3d5","e6d5","c1c7"],"rating":1936,"themes":["Attraction","Discovered attack"],"url":"https://lichess.org/lOhaNSGw/black#39"},
+{"id":"fSRMO","fen":"r3k2r/ppp2ppp/2n1bq2/2bp2N1/2Bp4/8/PPP2PPP/RNBQR1K1 b kq - 3 9","moves":["d5c4","g5e6","f7e6","d1h5","f6f7","h5c5"],"rating":1959,"themes":["Fork"],"url":"https://lichess.org/Os2W7Q4q/black#17"},
+{"id":"xaIMq","fen":"6k1/3RP3/p6P/1p6/8/2p2K2/5P2/4r3 b - - 0 44","moves":["g8f7","h6h7","e1h1","d7d8"],"rating":1982,"themes":["Advanced pawn","Defence","Rook endgame"],"url":"https://lichess.org/OEXcCQz6/black#87"},
+{"id":"m8P8S","fen":"8/8/p1k5/1p5p/3B4/1R1n2P1/P2r1P1P/6K1 w - - 3 35","moves":["a2a4","d2d1","g1g2","d3e1","g2h3","d1d4","a4b5","a6b5"],"rating":2010,"themes":["Discovered attack"],"url":"https://lichess.org/wrDSSj2f#68"},
+{"id":"N5Axl","fen":"3q2r1/3P1pk1/p3b3/1p2Q3/P1pR4/2P5/1P4P1/6K1 b - - 4 47","moves":["g7g6","e5g3","g6f6","g3g8","d8g8","d7d8q","g8d8","d4d8"],"rating":2058,"themes":["Advanced pawn","Exposed king","Promotion"],"url":"https://lichess.org/WrNrep7A/black#93"},
+{"id":"gt1ab","fen":"2B1k3/ppr2p2/3p2p1/4p3/4P3/3P2qQ/PPp5/R2K3R w - - 0 28","moves":["d1d2","g3f2","d2c1","f2f4","h3e3","f4e3"],"rating":2095,"themes":["Mate in 3"],"url":"https://lichess.org/ckvTNyTx#54"},
+{"id":"EDXa8","fen":"6k1/p4p1p/2p3p1/5b2/5b2/1BP3qP/PP2Q1P1/3r2BK w - - 0 30","moves":["e2d1","g3h3","g2h3","f5e4","d1f3","e4f3"],"rating":2147,"themes":["Two bishops mate","Mate in 3","Sacrifice"],"url":"https://lichess.org/RBsZVgFq#58"}];

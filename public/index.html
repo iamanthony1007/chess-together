@@ -1,754 +1,352 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#312e2b">
-  <meta name="description" content="Chess Together - Play chess with friends in real-time with voice and video chat">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♟</text></svg>">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#151b18">
+  <meta name="description" content="Play chess with a friend in real time. Video and voice calls, chat, shared puzzles and lessons. Free, no sign-up.">
   <title>Chess Together</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="preload" href="/fonts/spectral-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
 
-  <!-- ======================================================
-       CONNECTION STATUS INDICATOR
-       ====================================================== -->
-  <div id="connection-status" class="connection-status connected">
-    <span class="status-dot"></span>
-    <span class="status-text">Connected</span>
-  </div>
-
-  <!-- ======================================================
-       VIDEO CALL OVERLAY (floating, draggable, PiP style)
-       ====================================================== -->
-  <div id="video-container" class="video-container hidden">
-    <div id="video-drag-handle" class="video-drag-handle">
-      <span class="drag-dots">⠿</span>
-    </div>
-    <video id="remote-video" class="remote-video" autoplay playsinline></video>
-    <video id="local-video" class="local-video" autoplay playsinline muted></video>
-    <div id="video-controls" class="video-controls">
-      <button id="toggle-audio" class="video-btn active" title="Toggle microphone">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+  <header class="topbar">
+    <a class="brand" href="#/play" translate="no">
+      <img src="/pieces/wN.svg" alt="" width="28" height="28">
+      <span>Chess Together</span>
+    </a>
+    <div class="topbar-right">
+      <button class="icon-btn" id="sound-toggle" type="button" aria-pressed="true" aria-label="Sound on">
+        <svg class="i-sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+        <svg class="i-sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm13.6 3 2.7-2.7-1.3-1.3-2.7 2.7-2.7-2.7-1.3 1.3 2.7 2.7-2.7 2.7 1.3 1.3 2.7-2.7 2.7 2.7 1.3-1.3z"/></svg>
       </button>
-      <button id="toggle-video" class="video-btn active" title="Toggle camera">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-      </button>
-      <button id="end-call" class="video-btn end-call" title="End call">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
-      </button>
+      <span class="conn" id="conn" role="status"><span class="conn-dot"></span><span class="conn-text">Connecting</span></span>
     </div>
-    <div id="call-status" class="call-status hidden">Connecting...</div>
-  </div>
+  </header>
 
-  <!-- ======================================================
-       HOME VIEW
-       ====================================================== -->
-  <div id="home-view" class="view active">
-    <div class="home-container">
-      <!-- Logo & Branding -->
-      <div class="home-logo">
-        <div class="logo-icon">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <circle cx="32" cy="32" r="30" fill="#81b64c" opacity="0.15"/>
-            <text x="32" y="46" text-anchor="middle" font-size="40" fill="#81b64c">♚</text>
-          </svg>
-        </div>
-        <h1 class="logo-text">Chess Together</h1>
-        <p class="logo-tagline">Play, learn, and connect</p>
-      </div>
+  <main id="main" tabindex="-1">
 
-      <!-- Main Actions -->
-      <div class="home-actions">
-        <button id="btn-create-room" class="btn btn-primary btn-large">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          <span>Play with a Friend</span>
-        </button>
+    <!-- ===================== PLAY: lobby ===================== -->
+    <section class="view" id="view-lobby" aria-labelledby="lobby-title" hidden>
+      <div class="lobby">
+        <div class="lobby-board" aria-hidden="true">
+          <div id="lobby-board" class="board-host"></div>
+        </div>
+        <div class="lobby-panel">
+          <h1 id="lobby-title">Play a friend</h1>
+          <p class="lede">Make a room, send your friend the link, and play. Video, voice and chat are built in. No account needed.</p>
 
-        <div class="divider-or">
-          <span>or</span>
-        </div>
-
-        <div class="join-section">
-          <h3 class="join-title">Join a Game</h3>
-          <div class="join-input-group">
-            <input 
-              type="text" 
-              id="join-code-input" 
-              class="input-code" 
-              placeholder="Enter room code" 
-              maxlength="6" 
-              autocomplete="off" 
-              autocorrect="off" 
-              autocapitalize="characters"
-              spellcheck="false"
-            >
-            <button id="btn-join-room" class="btn btn-accent">Join</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Links -->
-      <div class="home-quick-links">
-        <button class="quick-link-card" data-view="puzzles-view">
-          <div class="quick-link-icon">🧩</div>
-          <div class="quick-link-info">
-            <h3>Puzzles</h3>
-            <p>Sharpen your tactics</p>
-          </div>
-          <span class="quick-link-arrow">›</span>
-        </button>
-
-        <button class="quick-link-card" data-view="lessons-view">
-          <div class="quick-link-icon">📖</div>
-          <div class="quick-link-info">
-            <h3>Lessons</h3>
-            <p>Learn step by step</p>
-          </div>
-          <span class="quick-link-arrow">›</span>
-        </button>
-      </div>
-
-      <!-- Online Status -->
-      <div class="home-footer">
-        <span class="online-indicator">
-          <span class="pulse-dot"></span>
-          <span id="online-count">0</span> players online
-        </span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======================================================
-       GAME VIEW
-       ====================================================== -->
-  <div id="game-view" class="view">
-    <div class="game-container">
-
-      <!-- Game Header -->
-      <div class="game-header">
-        <div class="game-header-left">
-          <button id="btn-back-home" class="btn-icon" title="Back to home">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-          </button>
-          <div class="room-code-display">
-            <span class="room-code-label">Room</span>
-            <span id="room-code-text" class="room-code-value">------</span>
-            <button id="btn-copy-code" class="btn-icon-small" title="Copy code">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-            </button>
-          </div>
-        </div>
-        <div class="game-header-right">
-          <button id="btn-call" class="btn-icon" title="Start voice/video call">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-          </button>
-          <button id="btn-toggle-chat" class="btn-icon" title="Toggle chat">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-            <span id="chat-badge" class="badge hidden">0</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Opponent Info Bar -->
-      <div class="player-bar opponent-bar">
-        <div class="player-info">
-          <div class="player-avatar opponent-avatar">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="#bababa"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          </div>
-          <div class="player-details">
-            <span id="opponent-name" class="player-name">Waiting for opponent...</span>
-            <div id="opponent-captured" class="captured-pieces"></div>
-          </div>
-        </div>
-        <div id="opponent-timer" class="player-timer">
-          <span class="timer-display">10:00</span>
-        </div>
-      </div>
-
-      <!-- Chess Board -->
-      <div class="board-wrapper">
-        <div class="board-coordinates board-coords-files">
-          <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span><span>g</span><span>h</span>
-        </div>
-        <div class="board-coordinates board-coords-ranks">
-          <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
-        </div>
-        <div id="chess-board" class="chess-board">
-          <!-- 64 squares rendered by JS -->
-        </div>
-        <!-- Promotion dialog -->
-        <div id="promotion-dialog" class="promotion-dialog hidden">
-          <div class="promotion-pieces">
-            <button class="promotion-piece" data-piece="q" title="Queen">
-              <img src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cburnett/wQ.svg" alt="Queen">
-            </button>
-            <button class="promotion-piece" data-piece="r" title="Rook">
-              <img src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cburnett/wR.svg" alt="Rook">
-            </button>
-            <button class="promotion-piece" data-piece="b" title="Bishop">
-              <img src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cburnett/wB.svg" alt="Bishop">
-            </button>
-            <button class="promotion-piece" data-piece="n" title="Knight">
-              <img src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cburnett/wN.svg" alt="Knight">
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Player Info Bar -->
-      <div class="player-bar player-bar-self">
-        <div class="player-info">
-          <div class="player-avatar self-avatar">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="#81b64c"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          </div>
-          <div class="player-details">
-            <span id="player-name" class="player-name">You</span>
-            <div id="player-captured" class="captured-pieces"></div>
-          </div>
-        </div>
-        <div id="player-timer" class="player-timer">
-          <span class="timer-display">10:00</span>
-        </div>
-      </div>
-
-      <!-- Move History -->
-      <div id="move-history" class="move-history">
-        <div class="move-history-header">
-          <span>Moves</span>
-        </div>
-        <div id="move-list" class="move-list">
-          <!-- Move pairs rendered by JS, e.g.:
-            <div class="move-pair">
-              <span class="move-number">1.</span>
-              <span class="move white-move">e4</span>
-              <span class="move black-move">e5</span>
+          <div id="resume-card" class="resume" hidden>
+            <div>
+              <p class="resume-label">You have a game open</p>
+              <p class="resume-code" id="resume-code" translate="no"></p>
             </div>
-          -->
-        </div>
-      </div>
-
-      <!-- Game Controls -->
-      <div class="game-controls">
-        <button id="btn-flip-board" class="btn-control" title="Flip board">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 17.01V10h-2v7.01h-3L15 21l4-3.99h-3zM9 3L5 6.99h3V14h2V6.99h3L9 3z"/></svg>
-          <span>Flip</span>
-        </button>
-        <button id="btn-offer-draw" class="btn-control" title="Offer draw">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-          <span>Draw</span>
-        </button>
-        <button id="btn-resign" class="btn-control btn-danger" title="Resign">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6h-5.6z"/></svg>
-          <span>Resign</span>
-        </button>
-      </div>
-
-      <!-- Game Status Bar -->
-      <div id="game-status" class="game-status">
-        <span id="game-status-text">Waiting for opponent to join...</span>
-      </div>
-
-      <!-- Chat Panel (collapsible) -->
-      <div id="chat-panel" class="chat-panel hidden">
-        <div class="chat-header">
-          <span>Chat</span>
-          <button id="btn-close-chat" class="btn-icon-small" title="Close chat">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-          </button>
-        </div>
-        <div id="chat-messages" class="chat-messages">
-          <!-- Chat messages rendered by JS -->
-        </div>
-        <div class="chat-input-area">
-          <input 
-            type="text" 
-            id="chat-input" 
-            class="chat-input" 
-            placeholder="Type a message..." 
-            autocomplete="off"
-          >
-          <button id="btn-send-chat" class="btn-icon" title="Send">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======================================================
-       PUZZLES VIEW
-       ====================================================== -->
-  <div id="puzzles-view" class="view">
-    <div class="puzzles-container">
-
-      <!-- Puzzle Header -->
-      <div class="puzzle-header">
-        <div class="puzzle-header-left">
-          <h2 class="section-title">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="#81b64c"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
-            Puzzles
-          </h2>
-        </div>
-        <div class="puzzle-header-right">
-          <div id="puzzle-partner-indicator" class="partner-indicator hidden">
-            <span class="pulse-dot green"></span>
-            <span>Partner watching</span>
+            <button class="btn btn-primary" id="resume-btn" type="button">Back to game</button>
           </div>
-        </div>
-      </div>
 
-      <!-- Puzzle Info -->
-      <div class="puzzle-info-bar">
-        <div class="puzzle-stat">
-          <span class="puzzle-stat-label">Puzzle</span>
-          <span id="puzzle-number" class="puzzle-stat-value">#1</span>
-        </div>
-        <div class="puzzle-stat">
-          <span class="puzzle-stat-label">Rating</span>
-          <span id="puzzle-rating" class="puzzle-stat-value">1200</span>
-        </div>
-        <div class="puzzle-stat">
-          <span class="puzzle-stat-label">Theme</span>
-          <span id="puzzle-theme" class="puzzle-stat-value">Fork</span>
-        </div>
-      </div>
-
-      <!-- Puzzle Turn / Status -->
-      <div id="puzzle-status" class="puzzle-status">
-        <span id="puzzle-status-icon" class="puzzle-status-icon">⬜</span>
-        <span id="puzzle-status-text">White to move</span>
-      </div>
-
-      <!-- Puzzle Board -->
-      <div class="board-wrapper">
-        <div class="board-coordinates board-coords-files">
-          <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span><span>g</span><span>h</span>
-        </div>
-        <div class="board-coordinates board-coords-ranks">
-          <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
-        </div>
-        <div id="puzzle-board" class="chess-board">
-          <!-- 64 squares rendered by JS -->
-        </div>
-        <!-- Promotion dialog for puzzles -->
-        <div id="puzzle-promotion-dialog" class="promotion-dialog hidden">
-          <div class="promotion-pieces">
-            <button class="promotion-piece" data-piece="q" title="Queen">
-              <img src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cburnett/wQ.svg" alt="Queen">
-            </button>
-            <button class="promotion-piece" data-piece="r" title="Rook">
-              <img src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cburnett/wR.svg" alt="Rook">
-            </button>
-            <button class="promotion-piece" data-piece="b" title="Bishop">
-              <img src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cburnett/wB.svg" alt="Bishop">
-            </button>
-            <button class="promotion-piece" data-piece="n" title="Knight">
-              <img src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cburnett/wN.svg" alt="Knight">
-            </button>
+          <div class="field">
+            <label for="player-name">Your name</label>
+            <input id="player-name" name="nickname" type="text" maxlength="20" autocomplete="nickname" enterkeyhint="done" placeholder="e.g. Adeola…">
           </div>
+
+          <button class="btn btn-primary btn-block" id="create-btn" type="button">Create a room</button>
+
+          <form class="join" id="join-form" novalidate>
+            <label for="join-code">Got a code from a friend?</label>
+            <div class="join-row">
+              <input id="join-code" name="code" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="6" enterkeyhint="go" placeholder="ABCDEF" aria-describedby="join-error" translate="no">
+              <button class="btn btn-secondary" type="submit">Join</button>
+            </div>
+            <p class="field-error" id="join-error" aria-live="polite"></p>
+          </form>
+
+          <ul class="lobby-notes">
+            <li>Moves are checked by the server, so the game is always fair.</li>
+            <li>Lost signal? Open the link again and you are back in your seat.</li>
+          </ul>
         </div>
       </div>
+    </section>
 
-      <!-- Puzzle Controls -->
-      <div class="puzzle-controls">
-        <button id="btn-puzzle-hint" class="btn-control" title="Get a hint">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
-          <span>Hint</span>
-        </button>
-        <button id="btn-puzzle-retry" class="btn-control" title="Retry puzzle">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-          <span>Retry</span>
-        </button>
-        <button id="btn-puzzle-next" class="btn-control" title="Next puzzle">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M5 18l10-6L5 6v12zm12-12v12h2V6h-2z"/></svg>
-          <span>Next</span>
-        </button>
-      </div>
+    <!-- ===================== PLAY: game ===================== -->
+    <section class="view" id="view-game" aria-labelledby="game-title" hidden>
+      <h1 class="sr-only" id="game-title">Game</h1>
+      <div class="game">
+        <div class="board-col">
+          <div class="strip" id="strip-top">
+            <div class="strip-who">
+              <span class="presence" data-presence></span>
+              <span class="strip-name" data-name></span>
+              <span class="material" data-material></span>
+            </div>
+            <div class="clock" data-clock translate="no">10:00</div>
+          </div>
 
-      <!-- Puzzle Result Feedback -->
-      <div id="puzzle-result" class="puzzle-result hidden">
-        <div id="puzzle-result-icon" class="puzzle-result-icon">✓</div>
-        <div id="puzzle-result-text" class="puzzle-result-text">Correct!</div>
-      </div>
-
-      <!-- Collaborative Puzzle Section -->
-      <div class="puzzle-collab-section">
-        <button id="btn-puzzle-invite" class="btn btn-secondary btn-small">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          Invite partner to watch
-        </button>
-      </div>
-
-      <!-- Puzzle Score -->
-      <div class="puzzle-score">
-        <div class="puzzle-score-item correct">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#81b64c"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-          <span id="puzzle-correct-count">0</span>
-        </div>
-        <div class="puzzle-score-item incorrect">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#e74c3c"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-          <span id="puzzle-incorrect-count">0</span>
-        </div>
-        <div class="puzzle-score-item streak">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#f39c12"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>
-          <span id="puzzle-streak-count">0</span> streak
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======================================================
-       LESSONS VIEW
-       ====================================================== -->
-  <div id="lessons-view" class="view">
-    <div class="lessons-container">
-
-      <!-- Lessons List (default sub-view) -->
-      <div id="lessons-list" class="lessons-list">
-        <div class="lessons-header">
-          <h2 class="section-title">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="#81b64c"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>
-            Lessons
-          </h2>
-        </div>
-
-        <div class="lesson-categories">
-          <!-- Beginner Lessons -->
-          <div class="lesson-category">
-            <h3 class="lesson-category-title">
-              <span class="category-badge beginner">Beginner</span>
-              Getting Started
-            </h3>
-            <div class="lesson-cards">
-              <button class="lesson-card" data-lesson="pieces-movement">
-                <div class="lesson-card-icon">♟</div>
-                <div class="lesson-card-content">
-                  <h4>How Pieces Move</h4>
-                  <p>Learn how each piece moves across the board</p>
-                  <div class="lesson-card-meta">
-                    <span class="lesson-steps">12 steps</span>
-                    <span class="lesson-progress" id="progress-pieces-movement">Not started</span>
-                  </div>
-                </div>
-                <span class="lesson-card-arrow">›</span>
-              </button>
-
-              <button class="lesson-card" data-lesson="checkmate-basics">
-                <div class="lesson-card-icon">♚</div>
-                <div class="lesson-card-content">
-                  <h4>Checkmate Basics</h4>
-                  <p>Understanding check, checkmate, and stalemate</p>
-                  <div class="lesson-card-meta">
-                    <span class="lesson-steps">8 steps</span>
-                    <span class="lesson-progress" id="progress-checkmate-basics">Not started</span>
-                  </div>
-                </div>
-                <span class="lesson-card-arrow">›</span>
-              </button>
-
-              <button class="lesson-card" data-lesson="special-moves">
-                <div class="lesson-card-icon">🏰</div>
-                <div class="lesson-card-content">
-                  <h4>Special Moves</h4>
-                  <p>Castling, en passant, and pawn promotion</p>
-                  <div class="lesson-card-meta">
-                    <span class="lesson-steps">10 steps</span>
-                    <span class="lesson-progress" id="progress-special-moves">Not started</span>
-                  </div>
-                </div>
-                <span class="lesson-card-arrow">›</span>
-              </button>
+          <div class="board-frame">
+            <div id="game-board" class="board-host"></div>
+            <div class="waiting" id="waiting" hidden>
+              <h2>Waiting for your friend</h2>
+              <p>Send them this code or the invite link.</p>
+              <p class="waiting-code" id="waiting-code" translate="no"></p>
+              <div class="waiting-actions">
+                <button class="btn btn-primary" type="button" data-action="share">Share invite link</button>
+                <button class="btn btn-secondary" type="button" data-action="copy-code">Copy code</button>
+              </div>
             </div>
           </div>
 
-          <!-- Intermediate Lessons -->
-          <div class="lesson-category">
-            <h3 class="lesson-category-title">
-              <span class="category-badge intermediate">Intermediate</span>
-              Tactics & Strategy
-            </h3>
-            <div class="lesson-cards">
-              <button class="lesson-card" data-lesson="forks">
-                <div class="lesson-card-icon">⚔️</div>
-                <div class="lesson-card-content">
-                  <h4>Forks</h4>
-                  <p>Attack two pieces at once</p>
-                  <div class="lesson-card-meta">
-                    <span class="lesson-steps">8 steps</span>
-                    <span class="lesson-progress" id="progress-forks">Not started</span>
-                  </div>
-                </div>
-                <span class="lesson-card-arrow">›</span>
-              </button>
+          <div class="strip" id="strip-bottom">
+            <div class="strip-who">
+              <span class="presence" data-presence></span>
+              <span class="strip-name" data-name></span>
+              <span class="material" data-material></span>
+            </div>
+            <div class="clock" data-clock translate="no">10:00</div>
+          </div>
+        </div>
 
-              <button class="lesson-card" data-lesson="pins-skewers">
-                <div class="lesson-card-icon">📌</div>
-                <div class="lesson-card-content">
-                  <h4>Pins & Skewers</h4>
-                  <p>Use line attacks to win material</p>
-                  <div class="lesson-card-meta">
-                    <span class="lesson-steps">10 steps</span>
-                    <span class="lesson-progress" id="progress-pins-skewers">Not started</span>
-                  </div>
-                </div>
-                <span class="lesson-card-arrow">›</span>
-              </button>
-
-              <button class="lesson-card" data-lesson="opening-principles">
-                <div class="lesson-card-icon">🏁</div>
-                <div class="lesson-card-content">
-                  <h4>Opening Principles</h4>
-                  <p>Control the center and develop your pieces</p>
-                  <div class="lesson-card-meta">
-                    <span class="lesson-steps">10 steps</span>
-                    <span class="lesson-progress" id="progress-opening-principles">Not started</span>
-                  </div>
-                </div>
-                <span class="lesson-card-arrow">›</span>
-              </button>
+        <aside class="side-col">
+          <div class="room-bar">
+            <div class="room-id">
+              <span class="room-label">Room</span>
+              <span class="room-code" id="room-code" translate="no"></span>
+            </div>
+            <div class="room-bar-actions">
+              <button class="btn btn-ghost btn-sm" type="button" data-action="share">Invite</button>
+              <button class="btn btn-ghost btn-sm" type="button" id="leave-btn">Leave</button>
             </div>
           </div>
 
-          <!-- Advanced Lessons -->
-          <div class="lesson-category">
-            <h3 class="lesson-category-title">
-              <span class="category-badge advanced">Advanced</span>
-              Master Concepts
-            </h3>
-            <div class="lesson-cards">
-              <button class="lesson-card" data-lesson="endgame-basics">
-                <div class="lesson-card-icon">👑</div>
-                <div class="lesson-card-content">
-                  <h4>Endgame Essentials</h4>
-                  <p>King and pawn endings, opposition, and more</p>
-                  <div class="lesson-card-meta">
-                    <span class="lesson-steps">12 steps</span>
-                    <span class="lesson-progress" id="progress-endgame-basics">Not started</span>
-                  </div>
-                </div>
-                <span class="lesson-card-arrow">›</span>
-              </button>
+          <p class="game-status" id="game-status" aria-live="polite"></p>
 
-              <button class="lesson-card" data-lesson="sacrifices">
-                <div class="lesson-card-icon">💥</div>
-                <div class="lesson-card-content">
-                  <h4>Tactical Sacrifices</h4>
-                  <p>Give up material to gain a decisive advantage</p>
-                  <div class="lesson-card-meta">
-                    <span class="lesson-steps">8 steps</span>
-                    <span class="lesson-progress" id="progress-sacrifices">Not started</span>
-                  </div>
-                </div>
-                <span class="lesson-card-arrow">›</span>
-              </button>
+          <div class="offer" id="offer-bar" hidden>
+            <p id="offer-text"></p>
+            <div class="offer-actions">
+              <button class="btn btn-primary btn-sm" type="button" id="offer-accept">Accept</button>
+              <button class="btn btn-secondary btn-sm" type="button" id="offer-decline">Decline</button>
             </div>
           </div>
+
+          <div class="toolbar" role="toolbar" aria-label="Game actions">
+            <button class="tool" type="button" id="call-video-btn">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2.5l5 3.5V7l-5 3.5V8z"/></svg>
+              <span>Video</span>
+            </button>
+            <button class="tool" type="button" id="call-audio-btn">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"/></svg>
+              <span>Voice</span>
+            </button>
+            <button class="tool tool-chat" type="button" id="chat-toggle" aria-expanded="false" aria-controls="chat">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 4V5a1 1 0 0 1 1-1z"/></svg>
+              <span>Chat</span>
+              <span class="badge" id="chat-badge" hidden>0</span>
+            </button>
+            <button class="tool" type="button" id="flip-btn">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 3 8h3v9h2V8h3L7 4zm10 16 4-4h-3V7h-2v9h-3l4 4z"/></svg>
+              <span>Flip</span>
+            </button>
+            <button class="tool" type="button" id="draw-btn">
+              <span class="tool-glyph" aria-hidden="true">½</span>
+              <span>Draw</span>
+            </button>
+            <button class="tool tool-danger" type="button" id="resign-btn">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h2v1h10l-2 4 2 4H8v9H6V3z"/></svg>
+              <span>Resign</span>
+            </button>
+          </div>
+
+          <div class="moves-panel">
+            <h2 class="panel-title">Moves</h2>
+            <ol class="moves" id="moves" aria-label="Move list"></ol>
+            <p class="empty" id="moves-empty">No moves yet. White starts.</p>
+          </div>
+
+          <section class="chat" id="chat" aria-label="Chat">
+            <div class="chat-head">
+              <h2 class="panel-title">Chat</h2>
+              <button class="icon-btn chat-close" type="button" id="chat-close" aria-label="Close chat">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4z"/></svg>
+              </button>
+            </div>
+            <ol class="chat-log" id="chat-log" aria-live="polite"></ol>
+            <p class="empty" id="chat-empty">Say hello. Messages stay in this room.</p>
+            <form class="chat-form" id="chat-form" autocomplete="off">
+              <label class="sr-only" for="chat-input">Message</label>
+              <input id="chat-input" name="message" type="text" maxlength="400" enterkeyhint="send" placeholder="Message…">
+              <button class="btn btn-primary btn-sm" type="submit">Send</button>
+            </form>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===================== PUZZLES ===================== -->
+    <section class="view" id="view-puzzles" aria-labelledby="puzzles-title" hidden>
+      <div class="trainer">
+        <div class="board-col">
+          <div class="trainer-head">
+            <h1 id="puzzles-title">Puzzles</h1>
+            <div class="segmented" role="radiogroup" aria-label="Difficulty" id="puzzle-filter">
+              <button type="button" role="radio" aria-checked="true" data-level="all">All</button>
+              <button type="button" role="radio" aria-checked="false" data-level="easy">Easy</button>
+              <button type="button" role="radio" aria-checked="false" data-level="medium">Medium</button>
+              <button type="button" role="radio" aria-checked="false" data-level="hard">Hard</button>
+            </div>
+          </div>
+          <div class="board-frame">
+            <div id="puzzle-board" class="board-host"></div>
+          </div>
         </div>
+
+        <aside class="side-col">
+          <div class="prompt" id="puzzle-prompt">
+            <span class="turn-chip" id="puzzle-turn"></span>
+            <p id="puzzle-task">Find the best move.</p>
+          </div>
+          <p class="feedback" id="puzzle-feedback" aria-live="polite"></p>
+
+          <dl class="facts">
+            <div><dt>Rating</dt><dd id="puzzle-rating" class="num"></dd></div>
+            <div><dt>Theme</dt><dd id="puzzle-theme"></dd></div>
+            <div><dt>Puzzle</dt><dd id="puzzle-index" class="num"></dd></div>
+          </dl>
+
+          <div class="btn-row">
+            <button class="btn btn-secondary" type="button" id="puzzle-hint">Hint</button>
+            <button class="btn btn-secondary" type="button" id="puzzle-solution">Show solution</button>
+            <button class="btn btn-secondary" type="button" id="puzzle-retry">Retry</button>
+            <button class="btn btn-primary" type="button" id="puzzle-next">Next puzzle</button>
+          </div>
+
+          <div class="score">
+            <div><span class="num" id="puzzle-solved">0</span><span>solved</span></div>
+            <div><span class="num" id="puzzle-streak">0</span><span>streak</span></div>
+            <div><span class="num" id="puzzle-best">0</span><span>best streak</span></div>
+          </div>
+
+          <div class="together" id="puzzle-together">
+            <p id="together-text">Playing a friend? Solve puzzles on the same board while you talk.</p>
+            <button class="btn btn-ghost btn-sm" type="button" id="together-btn">Solve with my friend</button>
+          </div>
+
+          <p class="source">Puzzles from the <a href="https://database.lichess.org/#puzzles" target="_blank" rel="noopener">Lichess puzzle database</a>. <a id="puzzle-game-link" href="#" target="_blank" rel="noopener">See the original game</a></p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===================== LEARN ===================== -->
+    <section class="view" id="view-learn" aria-labelledby="learn-title" hidden>
+      <div class="learn-list" id="learn-list">
+        <h1 id="learn-title">Lessons</h1>
+        <p class="lede">Short, hands-on lessons. You move the pieces, the board tells you if you got it.</p>
+        <div id="lesson-groups"></div>
       </div>
 
-      <!-- Lesson Detail (shown when a lesson is active) -->
-      <div id="lesson-detail" class="lesson-detail hidden">
-        <div class="lesson-detail-header">
-          <button id="btn-back-lessons" class="btn-icon" title="Back to lessons">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-          </button>
-          <h3 id="lesson-detail-title">Lesson Title</h3>
-          <span id="lesson-step-counter" class="lesson-step-counter">1 / 12</span>
-        </div>
-
-        <!-- Lesson Narration -->
-        <div id="lesson-narration" class="lesson-narration">
-          <p id="lesson-narration-text">Welcome to this lesson! Let's learn about how chess pieces move.</p>
-        </div>
-
-        <!-- Lesson Board -->
-        <div class="board-wrapper">
-          <div class="board-coordinates board-coords-files">
-            <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span><span>g</span><span>h</span>
+      <div class="trainer" id="lesson-detail" hidden>
+        <div class="board-col">
+          <div class="trainer-head">
+            <button class="btn btn-ghost btn-sm" type="button" id="lesson-back">
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4-4.6-4.6z"/></svg>
+              All lessons
+            </button>
+            <span class="step-count num" id="lesson-step-count"></span>
           </div>
-          <div class="board-coordinates board-coords-ranks">
-            <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
-          </div>
-          <div id="lesson-board" class="chess-board">
-            <!-- 64 squares rendered by JS -->
+          <div class="board-frame">
+            <div id="lesson-board" class="board-host"></div>
           </div>
         </div>
-
-        <!-- Lesson Instruction / Prompt -->
-        <div id="lesson-instruction" class="lesson-instruction">
-          <div id="lesson-instruction-icon" class="lesson-instruction-icon">👆</div>
-          <span id="lesson-instruction-text">Move the knight to the highlighted square</span>
-        </div>
-
-        <!-- Lesson Feedback -->
-        <div id="lesson-feedback" class="lesson-feedback hidden">
-          <span id="lesson-feedback-icon" class="lesson-feedback-icon">✓</span>
-          <span id="lesson-feedback-text">Correct! Great job.</span>
-        </div>
-
-        <!-- Lesson Navigation -->
-        <div class="lesson-nav">
-          <button id="btn-lesson-prev" class="btn btn-secondary" disabled>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Previous
-          </button>
-          <div class="lesson-progress-bar">
-            <div id="lesson-progress-fill" class="lesson-progress-fill" style="width: 0%"></div>
+        <aside class="side-col">
+          <h1 class="lesson-title" id="lesson-title"></h1>
+          <div class="progress" aria-hidden="true"><div class="progress-fill" id="lesson-progress"></div></div>
+          <p class="lesson-text" id="lesson-text"></p>
+          <p class="lesson-task" id="lesson-task"></p>
+          <p class="feedback" id="lesson-feedback" aria-live="polite"></p>
+          <div class="btn-row">
+            <button class="btn btn-secondary" type="button" id="lesson-prev">Previous</button>
+            <button class="btn btn-secondary" type="button" id="lesson-reset">Reset step</button>
+            <button class="btn btn-primary" type="button" id="lesson-next">Next</button>
           </div>
-          <button id="btn-lesson-next" class="btn btn-primary">
-            Next
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-          </button>
-        </div>
+        </aside>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
-  <!-- ======================================================
-       BOTTOM NAVIGATION
-       ====================================================== -->
-  <nav id="bottom-nav" class="bottom-nav">
-    <button class="nav-btn active" data-view="home-view">
-      <span class="nav-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-      </span>
-      <span class="nav-label">Home</span>
-    </button>
-    <button class="nav-btn" data-view="game-view">
-      <span class="nav-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19 22H5v-2h14v2M17.16 8.26A4.96 4.96 0 0 0 19 4c0-2.76-2.24-5-5-5-1.78 0-3.35.93-4.23 2.33l1.73 1C12.15 1.52 13.03 1 14 1c1.65 0 3 1.35 3 3 0 1.04-.53 1.96-1.34 2.5l-.66.44V10h2v-1.74zM14 20v-4H6L2 4h2l3 12h2L6 4h2l3 12h2L10 4h2l4 12v4h-2z"/></svg>
-      </span>
-      <span class="nav-label">Play</span>
-    </button>
-    <button class="nav-btn" data-view="puzzles-view">
-      <span class="nav-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
-      </span>
-      <span class="nav-label">Puzzles</span>
-    </button>
-    <button class="nav-btn" data-view="lessons-view">
-      <span class="nav-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>
-      </span>
-      <span class="nav-label">Lessons</span>
-    </button>
+  <nav class="tabbar" aria-label="Main">
+    <a href="#/play" data-tab="play">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v2h-1.5l1 3H17v2h-1.6l1.6 7H7l1.6-7H7V8h2.5l1-3H9V3zM5 19h14v2H5z"/></svg>
+      <span>Play</span>
+    </a>
+    <a href="#/puzzles" data-tab="puzzles">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a2 2 0 0 1 2 2v1h4a1 1 0 0 1 1 1v4h1a2 2 0 1 1 0 4h-1v4a1 1 0 0 1-1 1h-4v-1a2 2 0 1 0-4 0v1H4a1 1 0 0 1-1-1v-4h1a2 2 0 1 0 0-4H3V7a1 1 0 0 1 1-1h4V5a2 2 0 0 1 2-2z"/></svg>
+      <span>Puzzles</span>
+    </a>
+    <a href="#/learn" data-tab="learn">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 1 9l11 6 9-4.9V17h2V9L12 3zM5 13.2v4L12 21l7-3.8v-4L12 17l-7-3.8z"/></svg>
+      <span>Learn</span>
+    </a>
   </nav>
 
-  <!-- ======================================================
-       MODALS
-       ====================================================== -->
-  <div id="modal-overlay" class="modal-overlay hidden">
-    <div id="modal-content" class="modal-content">
-
-      <!-- Room Created Modal -->
-      <div id="modal-room-created" class="modal-body hidden">
-        <div class="modal-header">
-          <h3>Room Created!</h3>
-          <button class="modal-close btn-icon-small" title="Close">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-          </button>
-        </div>
-        <p class="modal-description">Share this code with your friend to start playing:</p>
-        <div class="room-code-big">
-          <span id="modal-room-code">------</span>
-          <button id="modal-copy-code" class="btn-icon" title="Copy code">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-          </button>
-        </div>
-        <div class="modal-waiting">
-          <div class="spinner"></div>
-          <span>Waiting for opponent to join...</span>
-        </div>
-      </div>
-
-      <!-- Game Over Modal -->
-      <div id="modal-game-over" class="modal-body hidden">
-        <div class="modal-header">
-          <h3 id="gameover-title">Game Over</h3>
-        </div>
-        <div class="gameover-result">
-          <div id="gameover-icon" class="gameover-icon">♚</div>
-          <p id="gameover-message" class="gameover-message">Checkmate! White wins.</p>
-          <p id="gameover-detail" class="gameover-detail">by checkmate</p>
-        </div>
-        <div class="gameover-actions">
-          <button id="btn-rematch" class="btn btn-primary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-            Rematch
-          </button>
-          <button id="btn-new-game" class="btn btn-secondary">New Game</button>
-          <button id="btn-review-game" class="btn btn-secondary">Review</button>
-        </div>
-      </div>
-
-      <!-- Draw Offer Modal -->
-      <div id="modal-draw-offer" class="modal-body hidden">
-        <div class="modal-header">
-          <h3>Draw Offer</h3>
-        </div>
-        <p class="modal-description">Your opponent is offering a draw. Do you accept?</p>
-        <div class="modal-actions">
-          <button id="btn-accept-draw" class="btn btn-primary">Accept Draw</button>
-          <button id="btn-decline-draw" class="btn btn-secondary">Decline</button>
-        </div>
-      </div>
-
-      <!-- Resign Confirm Modal -->
-      <div id="modal-resign-confirm" class="modal-body hidden">
-        <div class="modal-header">
-          <h3>Resign Game?</h3>
-        </div>
-        <p class="modal-description">Are you sure you want to resign? Your opponent will win the game.</p>
-        <div class="modal-actions">
-          <button id="btn-confirm-resign" class="btn btn-danger">Resign</button>
-          <button id="btn-cancel-resign" class="btn btn-secondary">Cancel</button>
-        </div>
-      </div>
-
-      <!-- Copy Confirmation Toast (not really a modal, but positioned in overlay) -->
-
+  <!-- Call window -->
+  <div class="call" id="call" hidden aria-label="Call">
+    <div class="call-media">
+      <video id="remote-video" autoplay playsinline></video>
+      <div class="call-avatar" id="remote-avatar" hidden></div>
+      <video id="local-video" autoplay playsinline muted></video>
+    </div>
+    <p class="call-state" id="call-state" aria-live="polite"></p>
+    <div class="call-controls">
+      <button class="call-btn" type="button" id="mic-btn" aria-pressed="false" aria-label="Mute microphone">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"/></svg>
+      </button>
+      <button class="call-btn" type="button" id="cam-btn" aria-pressed="false" aria-label="Turn camera off">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2.5l5 3.5V7l-5 3.5V8z"/></svg>
+      </button>
+      <button class="call-btn call-end" type="button" id="end-btn" aria-label="End call">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9c-2 0-3.9.4-5.6 1.1v3.2l-3.3 1.4L1 12.6C3.9 9.8 7.8 8 12 8s8.1 1.8 11 4.6l-2.1 2.1-3.3-1.4v-3.2C15.9 9.4 14 9 12 9z"/></svg>
+      </button>
+      <button class="call-btn" type="button" id="call-min-btn" aria-label="Make call window smaller" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h14v2H5z"/></svg>
+      </button>
     </div>
   </div>
 
-  <!-- ======================================================
-       TOAST NOTIFICATIONS
-       ====================================================== -->
-  <div id="toast-container" class="toast-container">
-    <!-- Toasts appended here by JS, e.g.:
-      <div class="toast toast-success">
-        <span class="toast-text">Code copied to clipboard!</span>
-      </div>
-    -->
-  </div>
-
-  <!-- ======================================================
-       LOADING SCREEN (shown on initial load)
-       ====================================================== -->
-  <div id="loading-screen" class="loading-screen">
-    <div class="loading-content">
-      <div class="loading-logo">♚</div>
-      <h2>Chess Together</h2>
-      <div class="loading-bar">
-        <div class="loading-bar-fill"></div>
-      </div>
+  <!-- Incoming call -->
+  <div class="incoming" id="incoming" role="alertdialog" aria-labelledby="incoming-text" hidden>
+    <p id="incoming-text"></p>
+    <div class="incoming-actions">
+      <button class="btn btn-primary btn-sm" type="button" id="incoming-accept">Answer</button>
+      <button class="btn btn-secondary btn-sm" type="button" id="incoming-audio">Voice only</button>
+      <button class="btn btn-danger btn-sm" type="button" id="incoming-decline">Decline</button>
     </div>
   </div>
 
-  <!-- ======================================================
-       SCRIPTS
-       ====================================================== -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.13.4/chess.min.js"></script>
-  <script src="/js/socket.io.min.js"></script>
-  <script src="/js/board.js"></script>
+  <!-- Dialog -->
+  <dialog class="dialog" id="dialog" aria-labelledby="dialog-title">
+    <form method="dialog">
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-body"></p>
+      <div class="dialog-actions" id="dialog-actions"></div>
+    </form>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="/socket.io/socket.io.min.js"></script>
+  <script src="/vendor/chess.js"></script>
   <script src="/js/puzzles-data.js"></script>
-  <script src="/js/webrtc.js"></script>
+  <script src="/js/lessons-data.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/board.js"></script>
+  <script src="/js/net.js"></script>
+  <script src="/js/call.js"></script>
+  <script src="/js/game.js"></script>
+  <script src="/js/puzzles.js"></script>
+  <script src="/js/lessons.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

@@ -1,18 +1,23 @@
 {
   "name": "chess-together",
-  "version": "1.0.0",
-  "description": "A mobile-first multiplayer chess app with real-time play, voice/video calls, puzzles, and lessons.",
+  "version": "2.0.0",
+  "description": "Play chess with a friend in real time, with voice and video, shared puzzles and lessons.",
   "main": "server.js",
+  "private": true,
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test/server.test.js"
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "socket.io": "^4.7.5",
-    "uuid": "^10.0.0"
+    "chess.js": "0.12.1",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18"
   },
   "license": "MIT"
 }
