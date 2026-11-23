@@ -21,6 +21,14 @@
       <span>Chess Together</span>
     </a>
     <div class="topbar-right">
+      <div class="top-call" id="top-call" hidden>
+        <button class="icon-btn" type="button" id="top-video-btn" aria-label="Video call your friend">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2.5l5 3.5V7l-5 3.5V8z"/></svg>
+        </button>
+        <button class="icon-btn" type="button" id="top-audio-btn" aria-label="Voice call your friend">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1L6.6 10.8z"/></svg>
+        </button>
+      </div>
       <button class="icon-btn" id="sound-toggle" type="button" aria-pressed="true" aria-label="Sound on">
         <svg class="i-sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
         <svg class="i-sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm13.6 3 2.7-2.7-1.3-1.3-2.7 2.7-2.7-2.7-1.3 1.3 2.7 2.7-2.7 2.7 1.3 1.3 2.7-2.7 2.7 2.7 1.3-1.3z"/></svg>
@@ -297,8 +305,8 @@
       <video id="remote-video" autoplay playsinline></video>
       <div class="call-avatar" id="remote-avatar" hidden></div>
       <video id="local-video" autoplay playsinline muted></video>
+      <p class="call-state" id="call-state" aria-live="polite"></p>
     </div>
-    <p class="call-state" id="call-state" aria-live="polite"></p>
     <div class="call-controls">
       <button class="call-btn" type="button" id="mic-btn" aria-pressed="false" aria-label="Mute microphone">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"/></svg>
@@ -306,10 +314,14 @@
       <button class="call-btn" type="button" id="cam-btn" aria-pressed="false" aria-label="Turn camera off">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2.5l5 3.5V7l-5 3.5V8z"/></svg>
       </button>
+      <button class="call-btn" type="button" id="call-size-btn" aria-pressed="false" aria-label="Make video bigger">
+        <svg class="i-grow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v2H7.4l3.3 3.3-1.4 1.4L6 7.4V10H4V4zm10 0h6v6h-2V7.4l-3.3 3.3-1.4-1.4L16.6 6H14V4zM4 14h2v2.6l3.3-3.3 1.4 1.4L7.4 18H10v2H4v-6zm14 0h2v6h-6v-2h2.6l-3.3-3.3 1.4-1.4 3.3 3.3V14z"/></svg>
+        <svg class="i-shrink" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4V7h2.6L3.3 3.7l1.4-1.4L8 5.6V4h1zm6 0h1v1.6l3.3-3.3 1.4 1.4L17.4 7H20v2h-5V4zM4 15h5v5H7v-2.6l-3.3 3.3-1.4-1.4L5.6 16H4v-1zm11 0h5v2h-2.6l3.3 3.3-1.4 1.4L16 18.4V21h-1v-6z"/></svg>
+      </button>
       <button class="call-btn call-end" type="button" id="end-btn" aria-label="End call">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9c-2 0-3.9.4-5.6 1.1v3.2l-3.3 1.4L1 12.6C3.9 9.8 7.8 8 12 8s8.1 1.8 11 4.6l-2.1 2.1-3.3-1.4v-3.2C15.9 9.4 14 9 12 9z"/></svg>
       </button>
-      <button class="call-btn" type="button" id="call-min-btn" aria-label="Make call window smaller" aria-pressed="false">
+      <button class="call-btn" type="button" id="call-min-btn" aria-label="Hide video" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h14v2H5z"/></svg>
       </button>
     </div>

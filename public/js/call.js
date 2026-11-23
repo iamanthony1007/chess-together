@@ -21,6 +21,7 @@
     cam: $('#cam-btn'),
     end: $('#end-btn'),
     min: $('#call-min-btn'),
+    size: $('#call-size-btn'),
     incoming: $('#incoming'),
     incomingText: $('#incoming-text'),
   };
@@ -93,7 +94,28 @@
     els.avatar.textContent = (call.opponentName || '?').slice(0, 1).toUpperCase();
     els.avatar.hidden = call.remoteHasVideo === true;
     els.dock.hidden = false;
-    document.body.dataset.call = els.dock.classList.contains('min') ? 'min' : 'on';
+    applySize();
+  }
+
+  // Size of the call window: 'large' (default), 'small', or minimised (video hidden).
+  let size = CT.ui.store.get('callSize', 'large') === 'small' ? 'small' : 'large';
+
+  function applySize() {
+    const min = els.dock.classList.contains('min');
+    els.dock.classList.toggle('large', size === 'large' && !min);
+    document.body.dataset.call = min ? 'min' : size === 'large' ? 'large' : 'on';
+    els.size.setAttribute('aria-pressed', String(size === 'large'));
+    els.size.setAttribute('aria-label', size === 'large' ? 'Make video smaller' : 'Make video bigger');
+    els.size.hidden = min;
+  }
+
+  function setSize(next) {
+    size = next;
+    CT.ui.store.set('callSize', size);
+    els.dock.classList.remove('min');
+    els.min.setAttribute('aria-pressed', 'false');
+    els.min.setAttribute('aria-label', 'Hide video');
+    applySize();
   }
 
   function attachLocal() {
@@ -109,6 +131,9 @@
     for (const track of call.local.getTracks()) pc.addTrack(track, call.local);
 
     pc.onnegotiationneeded = async () => {
+      // The caller always makes the first offer; the answering side waits for it.
+      // Two offers crossing on the wire is what made some first calls hang.
+      if (call.polite && !pc.remoteDescription) return;
       try {
         call.makingOffer = true;
         await pc.setLocalDescription();
@@ -198,7 +223,7 @@
     els.remote.srcObject = null;
     els.local.srcObject = null;
     els.dock.hidden = true;
-    els.dock.classList.remove('min');
+    els.dock.classList.remove('min', 'large');
     els.min.setAttribute('aria-pressed', 'false');
     delete document.body.dataset.call;
     els.mic.setAttribute('aria-pressed', 'false');
@@ -319,9 +344,15 @@
 
   els.min.addEventListener('click', () => {
     const min = els.dock.classList.toggle('min');
-    document.body.dataset.call = min ? 'min' : 'on';
     els.min.setAttribute('aria-pressed', String(min));
-    els.min.setAttribute('aria-label', min ? 'Make call window bigger' : 'Make call window smaller');
+    els.min.setAttribute('aria-label', min ? 'Show video' : 'Hide video');
+    applySize();
+  });
+
+  els.size.addEventListener('click', () => setSize(size === 'large' ? 'small' : 'large'));
+  // Tapping the video also switches between big and small.
+  els.dock.querySelector('.call-media').addEventListener('click', () => {
+    if (call.state !== 'idle') setSize(size === 'large' ? 'small' : 'large');
   });
 
   $('#incoming-accept').addEventListener('click', () => accept(true));

@@ -139,8 +139,8 @@
     const opp = playerName(oppColor());
     CT.call.setOpponentName(opp);
     const oppOnline = !!(s.players[oppColor()] && s.players[oppColor()].connected);
-    els.videoBtn.disabled = !oppOnline;
-    els.audioBtn.disabled = !oppOnline;
+    game.oppOnline = oppOnline;
+    renderCallButtons();
     els.drawBtn.disabled = s.status !== 'playing' || !!s.drawOffer;
     els.resignBtn.disabled = s.status !== 'playing';
 
@@ -261,6 +261,31 @@
     });
     if (choice === 'rematch' && game.state && game.state.status === 'over' && !game.state.rematch[myColor()]) net.send('rematch');
   }
+
+  // ---------------------------------------------------------------- call buttons
+  // Calls can start from the game toolbar or from the top bar on any tab.
+
+  const topCall = $('#top-call');
+  const topVideo = $('#top-video-btn');
+  const topAudio = $('#top-audio-btn');
+
+  function renderCallButtons() {
+    const inRoom = !!net.room && !!game.state;
+    const idle = CT.call.state === 'idle';
+    const canCall = inRoom && !!game.oppOnline && idle;
+    for (const b of [els.videoBtn, els.audioBtn, topVideo, topAudio]) b.disabled = !canCall;
+    // Show the top-bar buttons whenever there is a room and no call running.
+    topCall.hidden = !inRoom || !idle;
+    const name = playerName(oppColor()) || 'your friend';
+    topVideo.setAttribute('aria-label', game.oppOnline ? `Video call ${name}` : `${name} is offline`);
+    topAudio.setAttribute('aria-label', game.oppOnline ? `Voice call ${name}` : `${name} is offline`);
+    topVideo.title = topVideo.getAttribute('aria-label');
+    topAudio.title = topAudio.getAttribute('aria-label');
+  }
+
+  topVideo.addEventListener('click', () => CT.call.start(true));
+  topAudio.addEventListener('click', () => CT.call.start(false));
+  document.addEventListener('ct:call', renderCallButtons);
 
   // ---------------------------------------------------------------- clocks
 
@@ -401,6 +426,8 @@
     els.chatEmpty.hidden = false;
     setUnread(0);
     game.state = null;
+    game.oppOnline = false;
+    renderCallButtons();
     game.flipped = false;
     game.shownResultFor = 0;
     if (e.detail) {
