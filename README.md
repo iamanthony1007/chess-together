@@ -31,7 +31,18 @@ Run the server tests with `npm test`.
 
 Browsers only allow the camera and microphone on `https://` addresses or on `localhost`. On your phone over Wi-Fi (`http://192.168...`) moves and chat work, but calls will not. Deploy it (below) to get an HTTPS link.
 
-Calls use free STUN servers, which work on most home Wi-Fi. Phones on mobile data often need a relay (TURN) server. To add one, set these environment variables:
+Calls use free STUN servers, which work on most home Wi-Fi. Phones on mobile data often need a relay (TURN) server. The server hands relay credentials only to players seated in a room, so strangers cannot use up your allowance.
+
+**Cloudflare TURN (recommended, 1,000 GB a month free).** In the Cloudflare dashboard open Realtime, create a TURN app, and copy its Turn Token ID and API token into these environment variables:
+
+| Variable | Value |
+| --- | --- |
+| `CF_TURN_KEY_ID` | the TURN app's Token ID |
+| `CF_TURN_API_TOKEN` | the TURN app's API token |
+
+The server asks Cloudflare for credentials that expire after 6 hours and refreshes them every hour.
+
+**Any other TURN provider** with a fixed username and password:
 
 | Variable | Example |
 | --- | --- |

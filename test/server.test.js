@@ -55,6 +55,15 @@ const next = (s, ev, pred = () => true) =>
   const msg = await chatP;
   assert.strictEqual(msg.text, 'good luck <b>', 'chat trimmed and relayed as text');
 
+  // ICE servers: seated players get a list, outsiders only STUN
+  const ice = await emit(white, 'ice');
+  assert.ok(ice.ok && ice.iceServers.length >= 1, 'seated player gets ICE servers');
+  const outsider = connect();
+  await next(outsider, 'connect');
+  const iceOut = await emit(outsider, 'ice');
+  assert.strictEqual(iceOut.ok, false, 'outsider gets no relay credentials');
+  outsider.close();
+
   // Signalling relay
   const sigP = next(black, 'rtc', (d) => d.type === 'invite');
   white.emit('rtc', { type: 'invite', video: true });

@@ -30,6 +30,69 @@ const MAX_SIGNAL_BYTES = 30 * 1024;
 const EVENTS_PER_SECOND = 40;
 
 // ---------------------------------------------------------------------------
+// ICE servers (STUN + optional TURN relay)
+// ---------------------------------------------------------------------------
+const STUN_SERVERS = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
+const CF_TURN_KEY_ID = process.env.CF_TURN_KEY_ID || '';
+const CF_TURN_API_TOKEN = process.env.CF_TURN_API_TOKEN || '';
+const TURN_TTL_SECONDS = 6 * 60 * 60; // credentials live 6 hours
+const TURN_REFRESH_MS = 60 * 60 * 1000; // fetch fresh ones every hour
+let turnCache = { servers: null, at: 0 };
+
+/** Static TURN from env (any provider that gives a fixed username and password). */
+function staticTurn() {
+  if (!process.env.TURN_URL) return [];
+  return [
+    {
+      urls: process.env.TURN_URL.split(',').map((u) => u.trim()),
+      username: process.env.TURN_USERNAME || '',
+      credential: process.env.TURN_CREDENTIAL || '',
+    },
+  ];
+}
+
+/** Short-lived Cloudflare TURN credentials, cached and shared for an hour. */
+async function cloudflareTurn() {
+  if (!CF_TURN_KEY_ID || !CF_TURN_API_TOKEN) return [];
+  if (turnCache.servers && Date.now() - turnCache.at < TURN_REFRESH_MS) return turnCache.servers;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(CF_TURN_KEY_ID)}/credentials/generate-ice-servers`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${CF_TURN_API_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ttl: TURN_TTL_SECONDS }),
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`Cloudflare TURN answered ${res.status}`);
+    const data = await res.json();
+    const servers = (Array.isArray(data.iceServers) ? data.iceServers : [data.iceServers])
+      .filter((s) => s && s.username && s.credential && s.urls)
+      .map((s) => ({
+        // Port 53 is often blocked and makes browsers wait; drop those entries.
+        urls: [].concat(s.urls).filter((u) => !/:53(\?|$)/.test(u)),
+        username: s.username,
+        credential: s.credential,
+      }))
+      .filter((s) => s.urls.length);
+    turnCache = { servers, at: Date.now() };
+    return servers;
+  } catch (err) {
+    console.warn('[turn] could not get Cloudflare credentials:', err.message);
+    return turnCache.servers || [];
+  }
+}
+
+async function iceServersFor() {
+  const relay = await cloudflareTurn();
+  return [...STUN_SERVERS, ...(relay.length ? relay : staticTurn())];
+}
+
+// ---------------------------------------------------------------------------
 // HTTP
 // ---------------------------------------------------------------------------
 const app = express();
@@ -64,17 +127,9 @@ app.get('/vendor/chess.js', (_req, res) => {
 });
 
 app.get('/api/ice-servers', (_req, res) => {
-  // STUN works on most home Wi-Fi. Phones on mobile data often need a TURN relay;
-  // set TURN_URL, TURN_USERNAME and TURN_CREDENTIAL to enable one.
-  const servers = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
-  if (process.env.TURN_URL) {
-    servers.push({
-      urls: process.env.TURN_URL.split(',').map((u) => u.trim()),
-      username: process.env.TURN_USERNAME || '',
-      credential: process.env.TURN_CREDENTIAL || '',
-    });
-  }
-  res.json({ iceServers: servers });
+  // Public endpoint returns STUN only. Relay (TURN) credentials are handed out
+  // over the socket, and only to players seated in a room.
+  res.json({ iceServers: STUN_SERVERS });
 });
 
 app.get('/health', (_req, res) => {
@@ -468,6 +523,12 @@ io.on('connection', (socket) => {
     if (m.room.chat.length > CHAT_HISTORY) m.room.chat.shift();
     m.room.lastActivity = now;
     io.to(m.room.code).emit('chat', msg);
+  });
+
+  // ICE servers for calls. Relay credentials only go to seated players.
+  socket.on('ice', async (_data, ack) => {
+    if (!membership(socket)) return reply(ack, { ok: false, iceServers: STUN_SERVERS });
+    reply(ack, { ok: true, iceServers: await iceServersFor() });
   });
 
   // WebRTC signalling: relay only, to the other player in the room.

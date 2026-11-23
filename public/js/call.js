@@ -46,14 +46,10 @@
   }
 
   async function getIceServers() {
-    if (call.iceServers) return call.iceServers;
-    try {
-      const res = await fetch('/api/ice-servers');
-      call.iceServers = (await res.json()).iceServers;
-    } catch (_) {
-      call.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
-    }
-    return call.iceServers;
+    const res = await net.request('ice');
+    const servers = res && Array.isArray(res.iceServers) && res.iceServers.length ? res.iceServers : [{ urls: 'stun:stun.l.google.com:19302' }];
+    // Relay credentials expire, so only keep them for this call.
+    return servers;
   }
 
   function mediaError(err) {
